@@ -112,10 +112,93 @@ public boolean equals(Object obj) {
 
 对于基本类型，比较存储的实际值
 
-对于对象，比较对象的内存地址
+对于对象引用，比较对象引用的内存地址
 
 **总结：**从语法角度，也就是从强制性的角度来说，hashCode和equals是两个独立的，互不隶属，互不依赖的方法，equals成立与hashCode相等这两个命题之间，谁也不是谁的充分条件或者必要条件。 但是，为了让程序正常运行，应该如Effective   Java中所言，**重载equals的时候，一定要（正确）重载hashCode**  
 
 **即为了保证逻辑上的程序正确运行**
 
 > https://juejin.im/post/5a4379d4f265da432003874c
+
+
+
+### POJO类中布尔值变量成员变量（Boolean和boolean区别）
+
+POJO不要使用 **isXXX** 这种命名方式，否则部分框架解析会引起序列化错误
+
+**boolean的自动生成的getter方法是 isXXX，而Boolean自动生成的getter和其他类型变量一致为 getXXX** 
+
+boolean 默认值 false Boolean默认值null（**对于除boolean以外的POJO成员变量，最好都用包装类型，即用NPE来避免了默认值导致的逻辑错误，但没有报错难以发现**）
+
+```java
+    public class Model1{
+        private boolean isSuccess;
+        //根据JavaBeans的规则应该生成的是isIsSuccess，但很多IDE都生成如下
+        public boolean isSuccess() {
+            return isSuccess;
+        }
+        public void setSuccess(boolean success) {
+            isSuccess = success;
+        }
+    }
+    public class Model2{
+        private Boolean isSuccess;
+        //根据JavaBeans的规则应该生成的是getIsSuccess，但很多IDE都生成如下
+        public Boolean getSuccess() {
+            return isSuccess;
+        }
+        public void setSuccess(Boolean success) {
+            isSuccess = success;
+        }
+    }
+```
+
+**fastJson、jackson：**利用反射遍历POJO类中所有getter方法（包括boolean类型的 **isXXX()** 方法），会直接根据JavaBeans规则把方法 getXXX 和 isXXX 后的 XXX 当作属性名，把此方法的返回值当作属性值
+
+**此处还会有一个问题，就是如果你自己写了个 getXXX 形式的方法，这两个框架也会把 XXX 作为属性，其返回值作为属性值**
+
+**Gson：**利用反射遍历POJO类中的所有属性，并把其值序列化成json
+
+> https://mp.weixin.qq.com/s/LTiN6800FbIPmG2UdWwqqg
+
+
+
+### 静态导包
+
+Java 5 加入的 
+
+```java
+import static com.xxx.xx;
+```
+
+静态导入包后，可以直接用方法名调用其静态方法
+
+但滥用可能会导致程序难以维护，可读性变差
+
+
+
+### Java计算时间为什么从1970 年 1 月 1 日开始？
+
+Java, JavaScript, Python使用 Unix epoch (Midnight 1 January 1970)，时间戳的起始时间点即为距离此时间的毫秒数
+
+**为什么Unix epoc 是 Midnight 1 January 1970 ？**
+
+最初计算机操作系统是32 位，而时间也是用 32 位表示。 Integer在 JAVA 内用 32 位表 示，因此 32 位能表示的最大值是 2147483647。 另外1 年 365 天的总秒数是 31536000，
+2147483647/31536000 = 68.1。也就是说32 位能表示的最长时间是 68 年，而实际上到 2038年 01 月 19 日 03 时 14 分 07 秒，便会到达最大时间，过了这个时间点，所 有 32 位操作系统时间便会变 为 10000000 00000000 00000000 00000000也就是1901年 12月 13 日 20时 45 分 52 秒，这样便会出现时间回归的现象，很多软件便会运 行异常了。
+
+至于时间回归的现象相信随着64 为操作系统 的产生逐渐得到解决，因为这个时间已经是千亿年以后了。
+
+```java
+Date date = new Date(0);
+System.out.println(date);
+```
+```java
+输出：Thu Jan 01 08:00:00 CST 1970
+```
+
+**为什么是8点而非0点？**
+
+系统时间和本地时间问题，系统时间依然是0点，只不过电脑时区设置为东8区，故打印的结果是8点。
+
+
+
