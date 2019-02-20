@@ -202,3 +202,13 @@ System.out.println(date);
 
 
 
+### 数组初始化尾随逗号会被忽略
+
+```java
+int[] b = {1, 2, 3, 4, 5, 6,}; //A trailing comma causes no compiler error
+```
+
+> A trailing comma may appear after the last expression in an array initializer and is ignored.
+
+
+

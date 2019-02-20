@@ -142,7 +142,7 @@ a=b，给对象赋值传递的是**对象引用**（**别名现象**：复制了
 
 一元减号用于转换数据符号
 
-一元加号知识为了对应一元减号（**但唯一作用是把较小类型的操作数提升为int**）
+一元加号只是为了对应一元减号（**但唯一作用是把较小类型的操作数提升为int**）
 
 ```java
 byte b = 1;
@@ -193,7 +193,197 @@ float f4 = 1e-43f;
 
 一元：~（按位“非”，取反）
 
-**布尔值特殊情况**：**按位操作符和逻辑操作符同样的效果，并且不会短路**！！！
+**布尔值特殊情况**：**按位操作符和逻辑操作符同样的效果，但不会短路（即&产生了false还会计算后面部分）**！！！
 
+###移位操作符
 
+<<左移：低位补0
+
+\>>带符号右移：高位补符号位
+
+\>>>无符号右移：高位补0（C/C++都没有）
+
+也可以加=号，a<<=b，a左移b次，最后值赋给a
+
+**对char byte short移位时，会先转换为int再移位，对它们进行算术运算时也是一样**
+
+### 类型转换
+
+除布尔型之外的基本数据类型都可以进行强制类型转换
+
+## 第四章 控制执行流程
+
+### continue、break的label使用
+
+label：和goto一个意思
+
+continue label，跳转到label，但继续执行循环
+
+break label，跳转到label，不执行循环
+
+使用场景：嵌套循环想要从多层嵌套中break或continue
+
+### switch语句
+
+选择因子必须是整数值 （integral-selector）,如果是字符串或者浮点数，则必须用if-else
+
+**但Java 5 的 enum削弱了这种限制**
+
+## 第五章 初始化与清理（cleanup）
+
+### 构造器
+
+没有返回值，和void返回值都不同，就是没有
+
+new 表达式倒是返回了一个对新建对象的引用
+
+### 方法重载（overloading）
+
+方法名相同，区分通过：参数类型列表
+
+### this关键字（本质就是一个对象引用）
+
+只出现在非static方法内部，对象引用，指向调用方法的那个对象
+
+使用场景：将自身传递给外部方法、构造器中调用构造器
+
+### finalize()：执行特殊清理工作
+
+**使用场景：**
+
+- 用于清理一种被特殊分配内存的对象，即调用非java代码分配了内存的对象
+- 用于在验证程序终结条件，是否有未被清理的地方
+
+在垃圾回收发生时，会首先调用对象finalize()方法，并在下一次垃圾回收时才真正收回此对象占用内存
+
+**注意：**
+
+1. 对象可能不被垃圾回收（**垃圾回收并不是一定发生的**）
+2. 垃圾回收不等于“析构（C/C++）”
+3. 垃圾回收只和内存相关
+
+### JIT（just in time）
+
+热点代码检测，JIT判断字节码中哪些是频繁执行的，编译成机器码。如果是用的很少，就解释执行
+
+![](https://www.ibm.com/developerworks/cn/java/j-lo-just-in-time/img001.png)
+
+**编译 Compile**：把整个程序源代码翻译成另外一种代码，然后等待被执行，发生在运行之前，产物是「另一份代码」。
+**解释 Interpret**：把程序源代码一行一行的读懂然后执行，发生在运行时，产物是「运行结果」。
+
+### 数组初始化
+
+**1.基本数据类型数组**
+
+int[] a = {};
+
+int[] a = new int[n]; 运行时创建，**这时数组元素若是基本类型会自动初始化默认值**
+
+**2.对象数组（本质上是一个引用数组）**
+
+Integer[] a = {new Integer(1), new Integer(2), 3, };
+
+Integer[] a = new Integer[]{new Integer(1), new Integer(2), 3, };
+
+### 可变参数列表Varargs（Java 5添加）
+
+**只能对最后一个形参使用**
+
+**使用场景：**在不确定方法需要处理的对象的数量时可以使用可变长参数，会使得方法调用更简单，无需手动创建数组 new T[]{…}
+
+**调用方式：**
+
+```java
+public class Varargs {
+    public static void test(String... args) {
+        for(String arg : args) {
+            System.out.println(arg);
+        }
+    }
+    public static void main(String[] args) {
+        test();//0个参数
+        test("a");//1个参数
+        test("a","b");//多个参数
+        test(new String[] {"a", "b", "c"});//直接传递数组
+    }
+}
+```
+
+### 枚举enum（Java 5添加）
+
+对象是有限且固定的类，其地位与 class、interface 相同；
+
+枚举类是一种特殊的类，有自己的成员变量、成员方法、构造器 (只能使用 **private** 访问修饰符，**构造器只在构造枚举值时被调用**)；
+
+使用 enum 定义的枚举类默认继承了 java.lang.Enum 类，并实现了 java.lang.Seriablizable 和 java.lang.Comparable 两个接口;
+
+所有的**枚举值都是 public static final** 的，且非抽象的枚举类不能再派生子类；
+
+枚举类的所有实例(枚举值)**必须在枚举类的第一行显式地列出**，否则这个枚举类将永远不能产生实例
+
+```java
+public enum WeekEnum {
+    // 因为已经定义了带参数的构造器，所以在列出枚举值时必须传入对应的参数
+    SUNDAY("星期日"), MONDAY("星期一"), TUESDAY("星期二"), WEDNESDAY("星期三"),
+    THURSDAY("星期四"), FRIDAY("星期五"), SATURDAY("星期六");
+    // 定义一个 private 修饰的实例变量
+    private String date;
+    // 定义一个带参数的构造器，枚举类的构造器只能使用 private 修饰
+    private WeekEnum(String date) {
+        this.date = date;
+    }
+    // 定义 get set 方法
+    public String getDate() {
+        return date;
+    }
+    public void setDate(String date) {
+        this.date = date;
+    }
+}
+```
+
+**枚举类对象两个默认的字段：name:String和ordinal:int**，分别存放枚举值、枚举值对应的int（0开始）
+
+枚举类的每个枚举值就是该枚举类的一个对象
+
+**和其他非抽象类不同，枚举类可以定义抽象方法，但其所有枚举值必须实现该方法**
+
+```java
+public enum Operation {
+    // 用于执行加法运算
+    PLUS { // 花括号部分其实是一个匿名内部子类
+        @Override
+        public double calculate(double x, double y) {
+            return x + y;
+        }
+    },
+    // 用于执行减法运算
+    MINUS { // 花括号部分其实是一个匿名内部子类
+        @Override
+        public double calculate(double x, double y) {
+            // TODO Auto-generated method stub
+            return x - y;
+        }
+    },
+    // 用于执行乘法运算
+    TIMES { // 花括号部分其实是一个匿名内部子类
+        @Override
+        public double calculate(double x, double y) {
+            return x * y;
+        }
+    },
+    // 用于执行除法运算
+    DIVIDE { // 花括号部分其实是一个匿名内部子类
+        @Override
+        public double calculate(double x, double y) {
+            return x / y;
+        }
+    };
+    //为该枚举类定义一个抽象方法，枚举类中所有的枚举值都必须实现这个方法
+    public abstract double calculate(double x, double y);
+
+}
+```
+
+## 第六章 访问权限控制
 
