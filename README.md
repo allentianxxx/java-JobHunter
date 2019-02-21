@@ -6,7 +6,9 @@
 
 **静态代码块：**用staitc声明，jvm加载类时执行，仅执行一次
 **构造代码块：**类中直接用{}定义，每一次创建对象时执行。
-**执行顺序优先级：**静态块 > main() >  函数 > 构造代码块 > 构造函数
+**执行顺序优先级：**静态块 > main() > 实例变量初始化 > 构造代码块 > 构造函数
+
+其实实际上 实例变量初始化和构造代码块 实际上是放在构造函数的超类构造函数之后，本类构造代码之前
 
 > https://www.jianshu.com/p/8a3d0699a923
 
@@ -19,9 +21,11 @@ Integer i = 10;  //装箱 基本数据类型 -> 包装器类型
 int n = i;   //拆箱 包装器类型 -> 基本数据类型
 ```
 
-**装箱：**调用包装器的valueOf
+**自动装箱：**调用包装器的valueOf（**对于有些类的实现就会走缓存**）
 
-**拆箱：**调用包装器的 xxxValue（xxx代表对应的基本数据类型）
+**手动装箱：**new Integer(value)就是直接赋值，这样是避免了自动装箱走缓存的影响，因为缓存可能会被反射修改
+
+**自动拆箱：**调用包装器的 xxxValue（xxx代表对应的基本数据类型）
 
 基本数据类型对应的包装器类型
 
@@ -77,7 +81,7 @@ public static final Boolean FALSE = new Boolean(false);
 
 
 
-### **hashCode、equals和“==**
+### **hashCode、equals 和 ==**
 
 **hashCode**
 
@@ -114,7 +118,11 @@ public boolean equals(Object obj) {
 
 对于对象引用，比较对象引用的内存地址
 
-**总结：**从语法角度，也就是从强制性的角度来说，hashCode和equals是两个独立的，互不隶属，互不依赖的方法，equals成立与hashCode相等这两个命题之间，谁也不是谁的充分条件或者必要条件。 但是，为了让程序正常运行，应该如Effective   Java中所言，**重载equals的时候，一定要（正确）重载hashCode**  
+**总结：**从语法角度，也就是从强制性的角度来说，hashCode和equals是两个独立的，互不隶属，互不依赖的方法，equals成立与hashCode相等这两个命题之间，谁也不是谁的充分条件或者必要条件。 但是，为了让程序正常运行，应该如Effective   Java中所言，**重写equals的时候，一定要（正确）重写hashCode**  
+
+**重写equals不重写hashCode**
+
+使用HashMap，HashSet时，逻辑上相等的两个元素被分到不同的bucket里，并且调用contains方法时即使已经存在逻辑上相等的元素也会返回false
 
 **即为了保证逻辑上的程序正确运行**
 
@@ -131,9 +139,18 @@ POJO不要使用 **isXXX** 这种命名方式，否则部分框架解析会引�
 boolean 默认值 false Boolean默认值null（**对于除boolean以外的POJO成员变量，最好都用包装类型，即用NPE来避免了默认值导致的逻辑错误，但没有报错难以发现**）
 
 ```java
-    public class Model1{
+public class IsSuccessTest {
+    class Model1 {
+        private boolean success;
+        public boolean isSuccess() {
+            return success;
+        }
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+    }
+    class Model2 {
         private boolean isSuccess;
-        //根据JavaBeans的规则应该生成的是isIsSuccess，但很多IDE都生成如下
         public boolean isSuccess() {
             return isSuccess;
         }
@@ -141,9 +158,17 @@ boolean 默认值 false Boolean默认值null（**对于除boolean以外的POJO�
             isSuccess = success;
         }
     }
-    public class Model2{
+    class Model3 {
+        private Boolean succsee;
+        public Boolean getSuccsee() {
+            return succsee;
+        }
+        public void setSuccsee(Boolean succsee) {
+            this.succsee = succsee;
+        }
+    }
+    class Model4 {
         private Boolean isSuccess;
-        //根据JavaBeans的规则应该生成的是getIsSuccess，但很多IDE都生成如下
         public Boolean getSuccess() {
             return isSuccess;
         }
@@ -151,6 +176,7 @@ boolean 默认值 false Boolean默认值null（**对于除boolean以外的POJO�
             isSuccess = success;
         }
     }
+}
 ```
 
 **fastJson、jackson：**利用反射遍历POJO类中所有getter方法（包括boolean类型的 **isXXX()** 方法），会直接根据JavaBeans规则把方法 getXXX 和 isXXX 后的 XXX 当作属性名，把此方法的返回值当作属性值
@@ -183,7 +209,7 @@ Java, JavaScript, Python使用 Unix epoch (Midnight 1 January 1970)，时间戳�
 
 **为什么Unix epoc 是 Midnight 1 January 1970 ？**
 
-最初计算机操作系统是32 位，而时间也是用 32 位表示。 Integer在 JAVA 内用 32 位表 示，因此 32 位能表示的最大值是 2147483647。 另外1 年 365 天的总秒数是 31536000，
+最初计算机操作系统是32 位，而时间也是用 32 位表示。 Integer在 JAVA 内用 32 位表 示，因此 32 位能表示的最大值是2147483647（ 范围是-2^31~2^31 - 1）。 另外1 年 365 天的总秒数是 3600 \* 24 \* 365 = 31536000，
 2147483647/31536000 = 68.1。也就是说32 位能表示的最长时间是 68 年，而实际上到 2038年 01 月 19 日 03 时 14 分 07 秒，便会到达最大时间，过了这个时间点，所 有 32 位操作系统时间便会变 为 10000000 00000000 00000000 00000000也就是1901年 12月 13 日 20时 45 分 52 秒，这样便会出现时间回归的现象，很多软件便会运 行异常了。
 
 至于时间回归的现象相信随着64 为操作系统 的产生逐渐得到解决，因为这个时间已经是千亿年以后了。
