@@ -38,7 +38,7 @@ protected：可以被子类访问的private
 
 #### 参数化类型（范型）
 
-Java 5 加入的，避免了容器在存储对象过程中的向上转型（变为Object）和取出时的向下转型（耗时且可能引发异常）
+Java SE 5 加入的，避免了容器在存储对象过程中的向上转型（变为Object）和取出时的向下转型（耗时且可能引发异常）
 
 ### 对象创建和生命周期
 
@@ -227,7 +227,7 @@ break label，跳转到label，不执行循环
 
 选择因子必须是整数值 （integral-selector）,如果是字符串或者浮点数，则必须用if-else
 
-**但Java 5 的 enum削弱了这种限制**
+**但Java SE 5 的 enum削弱了这种限制**
 
 ## 第五章 初始化与清理（cleanup）
 
@@ -285,7 +285,7 @@ Integer[] a = {new Integer(1), new Integer(2), 3, };
 
 Integer[] a = new Integer[]{new Integer(1), new Integer(2), 3, };
 
-### 可变参数列表Varargs（Java 5添加）
+### 可变参数列表Varargs（Java SE 5添加）
 
 **只能对最后一个形参使用**
 
@@ -309,7 +309,7 @@ public class Varargs {
 }
 ```
 
-### 枚举enum（Java 5添加）
+### 枚举enum（Java SE 5添加）
 
 对象是有限且固定的类，其地位与 class、interface 相同；
 
@@ -638,7 +638,7 @@ class test3 extends WithInner.Inner{
 }
 ```
 
-至此这个导出类在创建对象时才具有基本的环境
+**至此这个导出类在创建对象时才具有基本的环境**
 
 ### 内部类不能被覆盖
 
@@ -806,7 +806,7 @@ Java提供了**AbstactCollection（抽象类）**作为**Collection的默认实�
 
 foreach主要用于数组，但是也可以用于**所有Collection对象**
 
-因为Java 5引入的**Iterable接口**，其包含了一个产生Iterator类型对象的iterator()方法
+因为Java SE 5引入的**Iterable接口**，其包含了一个产生Iterator类型对象的iterator()方法
 
 如果实现了**Iterable接口**，就可以使用foreach方法
 
@@ -963,5 +963,74 @@ harmful if swallowed（吞噬则有害）
 
 **参数就本应是给方法提供信息的，而不是让方法改变自己的**
 
-### 重载 + 和 StringBuilder
+### 重载 + 和 StringBuilder（Java SE 5引入，之前 StringBuffer 线程安全）
 
+重载：一个操作符在应用于特定的类时，被赋予特殊的意义（String的+和+=是Java仅有的重载过的操作符）
+
+Java不允许程序员重载任何操作符，C++允许
+
+如下，编译器会优化操作符，自动引入StringBuilder，使用其append，避免多次new String带来的开销
+
+```java
+String s = "a" + "b" + 47;
+```
+
+但当在循环里使用重载操作符的时候，**StringBuilder是在循环体内部构造的，每一次都会new一个，效率低**
+
+```java
+String s = "";
+for(String field : fields){
+    s += field;
+}
+```
+
+所以应该在循环内部显示的使用StringBuilder
+
+### 无意识的递归
+
+重写类的toString方法时，如果要打印此类对象内存地址，使用了this，那么会引发递归调用
+
+```java
+public String toString(){
+    return this;
+}
+```
+
+这里this返回的是本类的一个对象引用，但返回值是String，那么会调用此对象的toString，导致了递归调用
+
+应该使用Object.toString()，即**用super.toString()**
+
+### 格式化输出（Java SE 5）
+
+来源于C语言的printf()方法
+
+#### System.out.format() <=> System.out.printf()
+
+可用于**PrintStream**和**PrintWriter**对象
+
+#### Formatter类
+
+构造器可以接受多种输出目的地，常用**PrintStream**， **OutputStream**和**File**
+
+- 提供对空格和对齐的强大控制力
+- 类型转换
+
+**String.format：**String类的静态方法，接收和Formatter.format一样的参数，返回格式化的String，内部实现也是用一个**Formatter对象**
+
+### 正则表达式
+
+**注意Java String中的转义字符和正则表达式转义字符的区别**
+
+Java String中的 “\\\\\\\” = \\\\(正则中的\\)
+
+####String中的正则表达式
+
+- String.matches(String regex)：检查String是否和正则表达式匹配，返回true or false
+- String.split(String regex )：就是将字符串从正则表达式匹配的地方切开
+- String.replaceAll，String.replaceFirst()
+
+**如果不是只用一次，String以外的正则表达式具有更佳的性能**
+
+####Pattern（java.util.regex）
+
+Pattern.compile功能更强大的正则表达式对象
