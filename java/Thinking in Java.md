@@ -491,7 +491,7 @@ final可以用来修饰对象引用，但是这个意义仅在于对象引用只
 
 ### 抽象类（类和接口的折中）
 
-**有抽象方法的类是抽象类，抽象类不一定有抽象方法**（禁止一个类创建对象，但它又不需要抽象方法）
+**有抽象方法的类是抽象类，抽象类不一定有抽象方法**（**禁止一个类创建对象**，**但它又不需要抽象方法**）
 
 ```java
 abstract void f();//抽象方法没有方法体
@@ -527,9 +527,9 @@ jdk 1.5之前（没有enum关键字），接口被用来创建常量组
 
 ## 第十章 内部类（不同于组合）
 
-### 普通内部类
+### 普通内部类（成员内部类）
 
-**自动拥有一个指向外部类对象的引用**
+**自动拥有一个指向外部类对象的“秘密”引用**
 
 要从外部类的非静态方法创建内部类对象，则需要使用OuterClass.InnerClass
 
@@ -537,9 +537,9 @@ jdk 1.5之前（没有enum关键字），接口被用来创建常量组
 
 **内部类具有外部类所有元素的访问权**
 
-**内部类应用其外部类的对象**:**OuterClass.this**
+**内部类使用其外部类的对象**:**OuterClass.this**
 
-**直接创建内部类对象**(**.new**)：先创建一个外部类对象 outer ，OuterClass.InnerClass inner = outer.new InnerClass();
+**其他类直接创建内部类对象**(**.new**)：先创建一个外部类对象 outer ，OuterClass.InnerClass inner = outer.new InnerClass();
 
 **静态内部类（嵌套类）其实就相当于成为了一个顶级类**
 
@@ -549,7 +549,7 @@ jdk 1.5之前（没有enum关键字），接口被用来创建常量组
 
 **内部类向上转型**：内部类实现了一个外部接口，但调用者访问其外部类提供的方法，得到一个内部类提供的向上转型的接口类型的引用，隐藏了实现细节
 
-### 方法和任意作用域里的内部类
+### 局部内部类（方法和任意作用域里的内部类）
 
 **为什么需要？**
 
@@ -558,13 +558,17 @@ jdk 1.5之前（没有enum关键字），接口被用来创建常量组
 
 作用域和普通变量一样
 
+**不能有public、protected、private以及static修饰符的。**
+
+**什么时候用局部不用匿名内部类？**：需要一个命名的构造器，需要不止一个该内部类对象
+
 ### 匿名内部类
 
 **说明：**返回值的生成，与表示这个返回值的类的定义结合在一起
 
 通过new表达式返回的引用自动向上转型
 
-只能访问外部final对象
+**只能访问外部final对象**
 
 **特点：1.扩展or实现接口，只能做一样 2.只能实现一个接口**
 
@@ -585,21 +589,379 @@ jdk 1.5之前（没有enum关键字），接口被用来创建常量组
 
 ### 为什么需要内部类
 
-内部类对象：访问外围类所有成员
+**内部类拥有外围类的所有元素的访问权限**
 
-内部类：进入外围类的窗口
+**最吸引人的原因：**每个内部类可以单独实现一个接口，无论外部类是否已经继承了某个接口的实现，对于内部类都没有影响
 
-**最吸引人的原因：**每个内部类可以单独实现一个接口，而不需要关心外部类是否实现了该接口
+**内部类可以很好的实现隐藏。**一般的非内部类，是不允许有 private 与protected权限的，但内部类可以
 
-**多重继承**：内部类使得外部类实现了继承多个非接口类型（类和抽象类），因为接口本身就允许多继承
+**多重继承**：不同内部类继承多个不同**非接口类型（类和抽象类）**，或者内部类和外部类继承了不同**非接口类型（类和抽象类）**，因为接口本身就允许多继承
 
-多个内部类可以有同一个接口的不同实现
+多个内部类可以对应同一个接口的不同实现（控制框架）
 
 内部类没有is-a关系的困扰，是一个独立实体
 
-**闭包与回调：**闭包是一个可调用对象，记录了来自于创建它的作用域的信息，内部类是面向对象的闭包
+### 闭包与回调
 
-回调：对象携带信息，在某一时刻调用初始对象
+**闭包**：是一个**可调用对象**，记录了**来自于创建它的作用域的信息**，内部类是面向对象的闭包
 
+**回调**：对象携带信息，在某一时刻调用初始对象
 
+**JAVA并不能显式地支持闭包，但是在JAVA中，闭包可以通过“接口+内部类”来实现。**
+
+（内部类实现外部的一个接口，这样外部就可以接受内部类）
+
+### 控制框架
+
+解决响应事件的需求，常见于GUI，事件驱动系统
+
+抽象出控制Event的共有行为成接口
+
+由不同内部类来继承该同一个接口，完成不同的具体实现
+
+### 内部类的继承
+
+内部类的导出类，必须实现一个带参数的构造方法，传入的是外部类的对象
+
+**因为这个导出类的基类，也就是内部类是有一个“秘密”的指向其导出类对象的引用的**
+
+**必须在此构造函数第一行使用enclosingClassReference.super()**
+
+**注意：一般导出类里使用super是获取一个指向基类对象的引用**
+
+```java
+//WithInner外部类，Inner内部类，test3继承Inner
+class test3 extends WithInner.Inner{
+    test3(WithInner wi){
+        wi.super();//enclosingClassReference.super(),这里和一般导出类的super不一样
+    }
+}
+```
+
+至此这个导出类在创建对象时才具有基本的环境
+
+### 内部类不能被覆盖
+
+继承一个外部类时，其非private的内部类是不会被导出类中的同名内部类覆盖的，他们独立于不同的命名空间
+
+### 内部类标识符（Class文件）
+
+外部类**$**内部类，如果是匿名内部类，那么内部类名是一个数字
+
+## 第十一章 持有对象
+
+**使用场景：**用于**保存对象引用**，但不知道具体会有多少对象，而**数组又有固定的尺寸**，此时用到**容器类（集合类）**
+
+**预定义范型**
+
+```java
+List<Apple> apples = new ArrayList<>(); //这里使用List接收是因为，修改不同类型List只用在定义处修改
+Arrays.<Apple>asList()//这里是 显式类型参数说明
+```
+
+尖括号里是**类型参数（支持向上转型）**
+
+![image-20190224132228623](https://ws2.sinaimg.cn/large/006tKfTcgy1g0hg1s3zvvj31220mmah6.jpg)
+
+### Collection（集合， 最高层接口，公共基类，继承自Iterable）
+
+**Collection对象初始化方法**
+
+```java
+Arrays.asList() //接收数组或一组泛型类型的可变参数的元素列表,此种情况下，底层为数组，改变List长度就会报UnsupportedOperationException错
+Collections.addAll(Collection c, T... list) //接收需要初始化的Collection对象，以及数组或可变参数元素列表
+Collection.addAll(Cllection c) //这个是由已经定义的Collection对象调用，往自身添加另一个Collection的全部元素，没有Collections.addAll灵活
+```
+
+独立元素的**序列**，槽内只有一个元素，Collection包含List、Set、Queue
+
+#### 1.List（接口）
+
+**允许重复元素，按插入顺序分为：**
+
+**ArrayList（实体类）**：**动态数组实现**，适合随机访问
+
+**Vector（实体类）** ：和 ArrayList 类似，但它是线程安全的，过时的，**不要使用**
+
+**LinkedList（实体类，实现了Queue和List接口）**：**链表实现**，适合随机存储，<u>包含的操作也多于ArrayList</u>
+
+添加了作为Stack（栈）、Queue（队列）、double-ended queue（双端队列）的**方法**
+
+**Stack（实体类，Java 1.0实现，已过时）**：先进后出（FILO）
+
+**LinkedList支持的方法可以产生更好的Stack**
+
+```java
+public class Stack<T>{
+    private LinkedList<T> storage = new LinkedList<>();
+    public void push(T v) {storage.addFirst(v);}
+    public T peek() {return storage.getFirst();}
+    public pop() {return storage.removeFirst();}
+    public boolean empty() {return storage.isEmpty();}
+    public String toString {return storage.toString();}
+}
+```
+
+#### 2.Set（接口，All Set is a Collection except TreeSet）
+
+**不允许重复元素，查找是Set最重要的操作**
+
+**HashSet：**散列函数->查找最快**O(1)**，**不考虑存储顺序**
+
+**TreeSet：** **红黑树**->按照比较结果的升序保存对象（可以传入**Comparator**），查找**O(logN)**
+
+**LinkedHashSet(实体类，继承自HashSet)：** **链表维护插入顺序**，具有HashSet查找效率
+
+#### 3.Queue（接口，FIFO）
+
+只允许在容器一端插入对象，并从另一端一移除对象
+
+**可靠的将对象从程序某个区域传输到另一个区域的途径**
+
+```java
+Queue.offer() //将元素插入队尾，或返回false
+Queue.peek()和Queue.element() //返回队头，若不存在，返回null 和 NoSuchElementExcpetion
+Queue.poll()和Queue.remove() //移除并返回队头，若不存在，返回null 和 NoSuchElementExcpetion
+```
+
+**LinkedList（实体类，实现了Queue和List接口）**：
+
+getFirst() 等于 element()：返回列表第一个元素
+
+removeFirst ()等于 remove()：移除并返回列表第一个元素
+
+addFirst() 等于 add() 等于 addLast()：都将元素插入列表尾端
+
+removeLast()：移除并返回列表最后一个元素
+
+**PriorityQueue（实体类，优先队列）：** **基于堆结构实现**，可以传入**Comparator**来自定义优先级（默认使用**自然排序**），peek、poll和removce是获取队列优先级最高的元素
+
+---
+
+###Map（又名映射，关联数组，最高层接口，公共基类）
+
+**除了用另一个Map，未提供自动初始化的方式**
+
+每个槽内保存了两个对象，键值对
+
+####1.HashMap（实体类）
+
+哈希实现，提供了最快的查找速度
+
+#### 2.Hashtable（实体类）
+
+和 HashMap 类似，但它是线程安全的，这意味着同一时刻多个线程可以同时写入 HashTable 并且不会导致数据不一致。它是遗留类，**不应该去使用它**
+
+####3.TreeMap（实体类）
+
+**红黑树**实现
+
+####4.LinkedHashMap（实体类，继承自HashMap）
+
+ **链表维护插入顺序**，保留了HashMap的查询速度。**顺序为插入顺序或者最近最少使用（LRU）顺序**
+
+---
+
+###容器中的设计模式
+
+### 迭代器模式
+
+#### Iterator（接口）
+
+- 统一了容器的访问方式
+- **只能单向移动**
+- **foreach隐式包含了Iterator！！！！！！**
+
+```java
+Iterator.next() //获取下一元素
+Iterator.hasNext() //检查是否还有元素
+Iterator.remove() //从列表中删除迭代器新近返回的元素
+```
+
+**调用remove之前必须调用next，并且调用next后还只能调用一次remove**
+
+https://blog.csdn.net/qq_34115899/article/details/81978660（？？？但这和我测试的不一样，Java 8 foreach list.remove并没有报错）
+
+#### ListIterator(接口，仅用于List)
+
+- 更强大的Iterator子类型
+
+- **可以向前移动**
+
+- 可以产生当前位置的前一个和后一个元素索引
+
+#### Colleciton和Iterator
+
+在C++中，没有提供容器的公共基类，C++仅通过迭代器来达成容器之间的共性。
+
+**Java把这两种达成容器共性的方式绑定在一起：**公共基类（Collection），提供统一访问模式迭代器（Iterator）
+
+同时实现Collection就必须实现其iterator()
+
+Java提供了**AbstactCollection（抽象类）**作为**Collection的默认实现**
+
+**而当实现一个不是Collection的外部类时**，实现Collection接口约束很多（要实现所有方法），继承AbstactCollection也不是一个很好的选择（因为可能已经继承了其他类），这时为这个类**构建一个返回Iterator类型对象的方法（这个方法的返回利用了匿名内部类P243）**则是将队列和消费队列的方法连接在一起耦合度最小的方式。
+
+#### Foreach和迭代器
+
+foreach主要用于数组，但是也可以用于**所有Collection对象**
+
+因为Java 5引入的**Iterable接口**，其包含了一个产生Iterator类型对象的iterator()方法
+
+如果实现了**Iterable接口**，就可以使用foreach方法
+
+**Collection接口继承自Iterable接口**（接口可以继承多个接口）
+
+**数组不是Iterable类型，也不存在自动转换**
+
+### 适配器模式
+
+希望构造一个自己的ArrayList，并且在拥有默认的前向Iterator的同时，也拥有一个逆序的Iterator
+
+这个时候如果直接继承ArrayList并改写其iterator方法，只能实现一个功能的Iterator
+
+适配器模式：继承ArrayList，保留原有的iterator方法不变，新写一个返回逆序Iterator类型对象的方法**（这个方法的返回利用了匿名内部类P243）**
+
+java.util.Arrays#asList()把数组类型转换为List类型，接收数组或一组**泛型类型的可变参数的元素列表**
+
+由于是**泛型类型**可变参数列表，这里不能使用基本数据类型，只能使用相应的包装类型数组
+
+**注意：** **Arrays.asList()方法产生的List是使用的底层数组作为其实现**，如果执行的操作不想修改这个底层数组就必须在外面再包一层，创建一个副本进行操作，如 new ArrayList(Arrays.asList())。
+
+这也是为什么直接修改Arrays.asList()返回List的长度会报**UnsupportedOperationException**错的原因
+
+---
+
+### 总结
+
+数组和Collection都是建立了**数字索引和对象**之间的关联
+
+**数组：**支持基本数据类型，只能存放同一类型，长度不变
+
+**Collection：**不支持基本数据类型，可以存放不同类型（一般不这么做），长度可变
+
+**Map：**建立**对象和对象**之间的关联
+
+**Map和Collection之间唯一的重叠：**Collection\<V> Map.values()，Set\<K> keySet()
+
+不要使用过时的**Vector，Hashtable，Stack**
+
+## 第十二章 通过异常处理错误
+
+**异常的重要目标：**把错误处理代码和错误发生地点相分离
+
+粉色是**checked exceptions**，其必须被 try{}catch语句块所捕获,或者在方法签名里通过throws子句声明
+
+**Java编译器要进行检查,Java虚拟机也要进行检查,以确保这个规则得到遵守.**
+
+**runtime exceptions**：需要程序员自己分析代码决定是否捕获和处理,比如 空指针,被0除...
+而声明为Error的，则属于严重错误,需要根据业务信息进行特殊处理,Error不需要捕捉。
+
+![1383051170_4167](https://ws2.sinaimg.cn/large/006tKfTcgy1g0hl1t2ru2j30oj1ee77i.jpg)
+
+### 异常参数
+
+标准异常类有两个构造器
+
+- 默认构造器
+- 接受字符串参数的构造器
+
+**Throwbale**是异常类型的根类
+
+### 捕获异常
+
+监控区域（guarded region）：一段可能产生异常的代码，并且后面跟着处理这些异常的代码
+
+异常处理程序（catch块）
+
+**终止与恢复模型**：Java与C++都是用终止模型。即异常发生后不会在处理后尝试再次执行异常程序，好处是不需要了解异常抛出的地点，相比恢复模型降低了耦合
+
+e.printStackTrace()方法打印**从方法调用处直到异常抛出处的方法调用序列**，默认打印到标准错误流
+
+e.printStackTrace(System.out)打印到控制台
+
+### 异常说明
+
+**跟在方法名后的throws关键字描述的异常**
+
+这样做的好处是，不用暴露源码也能提醒使用者处理异常
+
+这种在编译时被强制检查的异常成为**被检查的异常（checked exceptions）**
+
+### 捕获所有异常
+
+printStacTrace()打印的信息可以通过getStackTrace()得到
+
+getStackTrace()返回的是一个由**Java虚拟机栈（VM Stack，JVM运行时数据区之一）**返回的栈轨迹
+
+####重新抛出异常
+
+如果在catch块里重新抛出当前异常对象，则异常抛出点不会变，异常抛给上一级程序
+
+如果是在catch块里调用，**fillInStackTrace()**方法返回了一个Throwable对象，则调用此方法的这一行变成了一场抛出点（**这和在catch块里发生了一个新的异常是同样的效果**）
+
+#### 异常链
+
+把原始异常信息传递给新的异常
+
+Java 5之后，Throwable的子类在**构造器**中可以接收一个**cause对象（表示原始异常）**作为参数，用于传递给新异常
+
+但只有**Error，Exception，RuntimException**三个子类提供带cause参数的构造器，链接**其他类型异常**需要使用**initCause()方法**
+
+### 使用finally进行清理
+
+finally处理**内存回收之外（内存由GC处理）的清理**：已打开的文件和网络连接，屏幕上图形等
+
+**finally永远会执行：**
+
+- 即使try块中抛出了catch块无法catch的异常
+- 即使try块中有break和continue
+- 即使try块中有return
+
+#### 异常丢失
+
+- 在finally块中return：没有任何输出
+- 在finally块中抛出新异常：只会存在finally块中的异常
+
+### 异常的限制
+
+当继承类或实现接口时，**至多只允许抛出基类方法异常说明中包含的异常类型**（即派生类override的基类方法最少可以不抛出任何异常，但最多只能抛出基类方法包含的异常，**或者是这些异常的派生类异常**）
+
+**这个限制的原因：**保证派生类对象向上转型的时候，对基类对象的方法调用能够正常运行
+
+1. **派生类override方法异常说明 <= 基类对应方法异常说明**
+
+以上限制和构造器无关
+
+但由于派生类构造器会调用基类构造器，所以
+
+2. **派生类构造器异常说明 >= 基类构造器异常说明**
+
+### 构造器
+
+构造器中异常，用finally来清理，可能**在异常抛出时清理对象还没初始化**，而finally却对其清理。
+
+**最安全的处理方式：使用嵌套的try catch子句**
+
+### 异常匹配
+
+catch 基类异常可以捕获其所有派生类异常
+
+### 其他
+
+harmful if swallowed（吞噬则有害）
+
+即catch块里不做任何操作，这样会让异常消失。
+
+**一种处理方式是，直接在catch 块里throw RunTimeException(e)**
+
+## 第十三章 字符串
+
+### 不可变String（只读）
+
+任何会修改String值的方法，都是创建了一个全新的String对象
+
+**参数就本应是给方法提供信息的，而不是让方法改变自己的**
+
+### 重载 + 和 StringBuilder
 
