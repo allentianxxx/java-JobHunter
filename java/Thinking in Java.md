@@ -437,7 +437,7 @@ https://blog.csdn.net/briblue/article/details/73928350
 
 ### final关键字
 
-**编译器常量**：staic和final同时修饰的基本数据类型，定义时必须赋值
+**编译期常量**：staic和final同时修饰的基本数据类型，定义时必须赋值（**不需要对类进行初始化就可以读取**）
 
 final可以用来修饰对象引用，但是这个意义仅在于对象引用只能永远指向这个对象，**但对象本身仍然可以被更改**
 
@@ -696,9 +696,9 @@ public class Stack<T>{
     private LinkedList<T> storage = new LinkedList<>();
     public void push(T v) {storage.addFirst(v);}
     public T peek() {return storage.getFirst();}
-    public pop() {return storage.removeFirst();}
+    public T pop() {return storage.removeFirst();}
     public boolean empty() {return storage.isEmpty();}
-    public String toString {return storage.toString();}
+    public String toString() {return storage.toString();}
 }
 ```
 
@@ -844,7 +844,7 @@ java.util.Arrays#asList()把数组类型转换为List类型，接收数组或一
 
 **Map和Collection之间唯一的重叠：**Collection\<V> Map.values()，Set\<K> keySet()
 
-不要使用过时的**Vector，Hashtable，Stack**
+不要使用Java 1.0过时的**Vector，Hashtable，Stack**
 
 ## 第十二章 通过异常处理错误
 
@@ -988,7 +988,7 @@ for(String field : fields){
 
 ### 无意识的递归
 
-重写类的toString方法时，如果要打印此类对象内存地址，使用了this，那么会引发递归调用
+重写类的toString方法时，如果要**打印此类对象内存地址**，使用了this，那么会引发递归调用
 
 ```java
 public String toString(){
@@ -1034,3 +1034,211 @@ Java String中的 “\\\\\\\” = \\\\(正则中的\\)
 ####Pattern（java.util.regex）
 
 Pattern.compile功能更强大的正则表达式对象
+
+## 第十四章 类型信息
+
+**RTTI（Run-time type identification）运行时状态识别**
+
+#### 多态
+
+使用基类引用调用基类方法，但此方法在所有派生类里都有不同实现，并且是动态绑定的，所以都能产生正确的行为，这就是多态。
+
+### Class对象（运行时类型信息的表示，Java依赖其完成RTTI）
+
+每编译一个新类就会为其生成Class对象，保存在.class文件
+
+**无论我们对引用进行怎样的类型转换，对象本身所对应的Class对象都是同一个**。由于Class对象的存在，Java不会因为类型的向上转换而迷失。这就是多态的原理。
+
+**Class类（所有Class对象都属于这个类）的静态方法**
+
+**Class.forName("全限定ClassName")** 获得该Class对象的引用，但**返回值通常被忽略**，相当于手动加载此类
+
+Object.getClass()获取当前类的Class对象
+
+Class.newInstance()实现**虚拟构造器**的一种方式
+
+为了使用类做的准备工作
+
+**加载：**类加载器执行。查找字节码.class，并创建一个Class对象
+
+**链接：**验证类中的字节码，为静态域分配空间，有必要的话解析这个类创建的对其他类的引用
+
+**初始化：**如果有超类，对其初始化，执行静态初始化器和静态初始化块
+
+#### 类字面常量（也是获得Class对象的引用，但不会初始化类）
+
+**ClassName.class**，可以用于普通类，接口，数组以及基本数据类型（**等价于基本类型包装器的TYPE字段**）
+
+**！！不同于Class.forName()，使用类字面常量的时候不会自动初始化Class对象！！**，被延迟到了对静态域首次引用时才执行
+
+如果一个域是staic非final，那么读取前必须要进行**链接和初始化**
+
+#### 泛化的Class引用
+
+Java SE 5加入的泛型
+
+```java
+Class<Integer> intClass = int.class; //泛型使得编译器强制执行了额外的类型检查
+Class<Number> numberClass = int.class;//报错，即使Integer继承于Number，但Integer Class不是 Number Class的子类
+```
+
+**泛型通配符 ?，搭配extends使用**
+
+```java
+Class<? extends Number> numberClass = int.class;//正确，使得Class引用nuberClass可以接受Number类和其所有导出类的Class对象
+```
+
+#### 新的转型语法
+
+**转型多指向下转型，编译器检查向下转型正确性，**向上转型不需要检查（编译器允许自由的向上转型）
+
+Java SE 5添加的转型语法，**用于普通转型无法使用的情况**
+
+Class对象引用的方法
+
+**Class.cast(Object obj)**：将参数obj对象转换成Class引用的类型
+
+**普通转型：**(ClassName)obj
+
+### RTTI三种形式
+
+1. 传统类型转换，如（Shape）
+2. 代表对象类型的Class对象
+3. 关键字instance of（等价于Object.isInstance()）
+
+### instanceof和Class的等价性
+
+查询类型信息时，instanceOf()和直接比较Class对象有区别
+
+equals和==直接比较Class对象是否相等，比较的是**是否为确切的这个类型**
+
+而instanceof指的是，**你是这个类吗，或者你是这个类的派生类吗**
+
+### 反射（Class类和java.lang.reflect共同支持）
+
+**产生背景：**RTTI的限制，类型必须在编译时已知，才能够通过RTTI来识别
+
+JavaBeans，RMI
+
+**但如果我们想要在运行时，获取编译时不知道的类（未知类）的信息，需要用到反射**
+
+**RTTI：**在编译时获取.class文件
+
+**反射：**在运行时获取.class文件
+
+**java.lang.reflect（类库）：**包含Field、Method、Constructor
+
+### 动态代理（P338）
+
+### 空对象（没太看懂）
+
+## 第十五章 泛型（Java SE 5引入的重大变化）
+
+**产生背景：**要编写可以应用于多种类型的代码
+
+实现了**参数化**类型的概念
+
+#### 元组（数据传送对象，信使）
+
+```java
+public class TwoTuple<A,B>(){
+    public final A a;
+    public final B b;
+    public TwoTuple(A a, B b){
+        this.a = a;
+        this.b = b;
+    }
+    public String toString(){
+        return "(" + a + ", " + b + ")";
+    }
+}
+```
+
+### 擦除
+
+**在泛型代码内部，无法获得任何有关泛型参数类型的信息**
+
+**泛型→具体类型信息→被擦除**
+
+### 边界（泛型的参数类型→设置限制条件）
+
+**无界通配符<?>**
+
+**超类型通配符（参数是下界）<? super T>**：某个特定类的任何基类
+
+**\<T extends HasF>：**限制为HasF的类型子集
+
+### 泛型最大的价值
+
+使用容器类的地方
+
+Java SE 5之前容器类里对象都是Object，放入时会丢失类型信息，取出时必须向下转型
+
+## 第十六章 数组
+
+在使用时，除非能确定效率和数组有关，否则，**优先使用容器而不是数组**
+
+**和其他种类容器区别：**效率、类型、保存基本类型的能力
+
+**效率最高**的**存储**和**随机访问对象引用序列**的方式
+
+泛型出现后，数组最大的优点就是**效率**
+
+对象数组元素**默认值为null**，基本类型数组默认值为其**作为类成员时的默认值**一样
+
+### 数组是第一级对象
+
+数组标识符是一个**引用**，指向**堆**中创建的一个**真实数组对象**，这个数组对象保存指向其他对象的引用
+
+**length：**数组对象唯一一个可以访问的域
+
+### 多维数组
+
+**粗糙数组：**数组中构成矩阵的每个向量长度可以不一致
+
+Arrays.deepToString()：将多维数组转换成多个String
+
+### 数组与泛型
+
+**不能实例化**具有参数化类型的数组（但可以创建一个参数化类型数组的引用，并实例化一个具体类型的数组转型赋值给该引用）
+
+```java
+List<String>[] ls = new ArrayList<>()[] //错误
+
+List<String>[] ls；	//正确
+List[] la = new List[10];
+ls = (List<String>[])la;
+```
+
+**可以**参数化数组本身的类型，如 T []
+
+### Arrays实用功能
+
+**equals()：**比较数组是否相等
+
+**sort()：**对数组排序，**基本类型：快速排序，引用类型：稳定归并排序**
+
+**binarySearch()：**对排序后数组查找元素（只能用于**已排序数组**）
+
+**toString：**产生数组的String表示
+
+**hashCode：**产生数组的哈希值
+
+**asList()：**接收一个可变参数列表，生成List（但是此List的长度不能改变）
+
+#### System.arraycopy()（复制数组，比for循环快很多）
+
+复制数组，**支持基本类型数组和对象数组**，但不进行自动装箱和拆箱
+
+### 数组排序
+
+**Arrays.sort()默认只支持基本类型数组排序**
+
+若要对对象数组排序，要求该类型**实现了Comparable接口或者有相关联的Comparator**
+
+Arrays.sort(a)，要求对象数组a实现了Comparable接口
+
+Arrays.sort(b, String.CASE_INSENSATIVE)，b是一个String数组，传入了String的一个Comparator
+
+## 第十七章 容器深入研究
+
