@@ -734,7 +734,7 @@ addFirst() 等于 add() 等于 addLast()：都将元素插入列表尾端
 
 removeLast()：移除并返回列表最后一个元素
 
-**PriorityQueue（实体类，优先队列）：** **基于堆结构实现**，可以传入**Comparator**来自定义优先级（默认使用**自然排序**），peek、poll和removce是获取队列优先级最高的元素
+**PriorityQueue（实体类，优先队列）：** **基于堆结构实现**，可以传入**Comparator**来自定义优先级（默认使用**自然排序**），peek、poll和remove是获取队列优先级最高的元素
 
 ---
 
@@ -961,6 +961,15 @@ harmful if swallowed（吞噬则有害）
 
 任何会修改String值的方法，都是创建了一个全新的String对象
 
+**注意字符串常量池的概念，代码里所有“test”字符串都会在编译期确定，放入字符串常量池**
+
+```java
+ String s1 = “first”;
+ String s2 = new String(“second”);
+s1:中的”first” 是字符串常量，在编译期就被确定了，先检查字符串常量池中是否含有”first”字符串,若没有则添加”first”到字符串常量池中，并且直接指向它。所以s1直接指向字符串常量池的”first”对象。
+s2:用new String() 创建的字符串不是常量，不能在编译期就确定，所以new String() 创建的字符串不放入常量池中，它们在堆里有自己的地址空间,然后堆里的这个String对象指向常量池的”second“。 但是”second”字符串常量在编译期也会被加入到字符串常量池
+```
+
 **参数就本应是给方法提供信息的，而不是让方法改变自己的**
 
 ### 重载 + 和 StringBuilder（Java SE 5引入，之前 StringBuffer 线程安全）
@@ -1154,6 +1163,24 @@ public class TwoTuple<A,B>(){
 }
 ```
 
+### 生成器（P358）
+
+**工厂设计模式的一种应用**：只是工厂方法需要提供参数，但生成器不需要
+
+###泛型方法（泛型参数置于返回值前）
+
+**泛型方法和其所属类是否为泛型类没有关系**，**优先使用泛型方法**而不是泛化整个类
+
+**static方法无法访问泛型类的类型参数**（因为泛型类的类型是在创建对象时指定的，而static方法在此之前就可以被调用）
+
+```java
+    public static <T> ArrayList<T> f(T a){}
+```
+
+#### 泛型方法的显示类型参数说明（很少用）
+
+在点操作符与方法名之间插入尖括号说明类型 Arrays.\<Apple>asList()
+
 ### 擦除
 
 **在泛型代码内部，无法获得任何有关泛型参数类型的信息**
@@ -1212,6 +1239,24 @@ ls = (List<String>[])la;
 
 **可以**参数化数组本身的类型，如 T []
 
+### 创建测试数据
+
+#### Arrays.fill()
+
+用单一数据填充数组
+
+#### 数据生成器（P443）
+
+Generator中**嵌套多个不同类**，实现不同的生成器逻辑
+
+**嵌套类使得可以使用和其要生成类型相同的名字，如嵌套类Integer，不会和外部的Integer冲突**
+
+可以为不同的类型数据选择不同的生成器类型（**策略设计模式的实例**，每个不同生成器都是一个策略）
+
+如为基本数据类型的包装器类型构造的CountingGenerator，内部用不同嵌套类实现不同类型生成器
+
+调用时就可以 **new CountingGenerator.Integer()**
+
 ### Arrays实用功能
 
 **equals()：**比较数组是否相等
@@ -1241,4 +1286,237 @@ Arrays.sort(a)，要求对象数组a实现了Comparable接口
 Arrays.sort(b, String.CASE_INSENSATIVE)，b是一个String数组，传入了String的一个Comparator
 
 ## 第十七章 容器深入研究
+
+![Jietu20190227-133346@2x](https://ws4.sinaimg.cn/large/006tKfTcly1g0kx9cl2ohj30lm0kudjg.jpg)
+
+### 填充容器
+
+**所有的Collection子类都有一个构造器，接收一个Collection对象**，用接受的Collection对象来填充
+
+**Collections.fill()：**类似Arrays对应方法，用单一数据**填充List容器（仅适用List容器）**
+
+**Collections.nCopies(int n, T o)**：创建一个List, 里面包含n个T类型的对象o
+
+**Generator**：可以编写一个适配器，将Gnerator适配到Collection 的构造器上
+
+#### Map生成器
+
+**需要一个二元组类**，因为Map构造器每次生成的应该是一个<K,V>对
+
+#### 使用抽象类
+
+**每个java.util容器都有自己的Abstract类**
+
+### 可选操作和UnsupportedMethodException
+
+Collection接口的添加和移除都是可选操作，意味着实现类不需要为这些方法提供实现
+
+**为什么需要可选操作？**：防止出现接口爆炸的情况
+
+- 因为在接口的有些实现类里，可选方法可能是完全没有意义的，调用该方法会抛出UnsupportedMethodException
+- 如果创建了一个新的Collection类，但没有实现所有方法，它仍然适合现有的类库
+- 从设计的角度来说，如果一个接口方法为可选的，表明这个方法只为某类特定的实现而设计的
+
+比如Arrays.asList()产生了一个基于固定大小的数组的List，那么它的add，addAll，retain，retianAll方法都是没有意义的，调用则会引发UnsupportedMethodException异常
+
+### Set和存储顺序
+
+#### Set（接口）
+
+存入元素必须唯一，**必须定义equals()方法**，不保证维护元素的次序
+
+####HsahSet（默认使用，对速度进行了优化）
+
+必须定义**hashCode()，equals()**
+
+#### TreeSet（按对象的比较函数保持次序的Set，是SortedSet接口的唯一实现）
+
+元素必须实现**Comparable接口，equals()**
+
+```java
+Comparator comparator() //返回当前Set使用的comparator，null则为自然排序
+Object first() //返回第一个元素
+Object last() //返回末尾元素
+SortedSet subSet(fromElement, toElement) //获取子集
+SortedSet headSet(toElement)	//获取小于toElement的子集
+SortedSet tailSet(fromElement) //获取大于等于fromElement的子集 前闭后开
+```
+
+####LinkedHashSet（**保持次序的HashSet**）
+
+必须定义**hashCode()，equals()**，内部用链表维护插入元素的顺序
+
+### 队列（Queue）
+
+Queue在Java SE 5中仅有两个实现**LinkedList**和**PriorityQueue**，两者**差异在于排序行为**而不是性能
+
+**优先级队列（PriorityQueue）**基于堆实现
+
+**双向队列（Double-ended queue）**：ArrayDeque（JDK 8），LinkedList也包含支持双向队列的方法
+
+### 理解Map（又名映射表，关联数组）
+
+**任何插入Map的对象都必须有equals方法**，如果用于HashMap，则要求有**恰当的hashCode**方法
+
+#### HashMap（不关心顺序）
+
+插入和查询键值对的开销是固定的
+
+构造器设置**容量**和**负载因子**调整性能
+
+**容量**：哈希表中的桶位数
+
+**初始容量**：创建表时的桶位数
+
+**尺寸**：当前存储项数
+
+**负载因子**：尺寸/容量（默认0.75的时候会进行**再哈希**，如果知道自己要存多少数据，可以设置合理尺寸来避免再哈希）
+
+#### LinkedHashMap（有序的，继承自HashMap）
+
+插入和查询比HashMap慢一点点，但**迭代访问时反而更快**
+
+**取出顺序是插入顺序，或者是LRU次序**
+
+#### TreeMap（有序的，由Comparable或Comparator决定）
+
+唯一有**subMap()方法**的Map，可以返回一个子树
+
+#### WeakHashMap
+
+保存**WeakReference**
+
+value只保存一份实例，节省存储空间
+
+允许释放映射所指的对象
+
+如果映射之外，没有引用指向某个”键“，那么此”键“可以被GC回收（不管内存是否够用）
+
+#### ConcurrentHashMap（线程安全）
+
+不涉及同步加锁
+
+#### IdentityHashMap（无序，key值可以重复，因为是==比较）
+
+使用==代替equals对”键“进行比较的HashMap。专为解决特殊问题
+
+1. IdentityHashMap有其特殊用途，比如序列化或者深度复制。或者记录对象代理。
+2. 举个例子，jvm中的所有对象都是独一无二的，哪怕两个对象是同一个class的对象，而且两个对象的数据完全相同，对于jvm来说，他们也是完全不同的，如果要用一个map来记录这样jvm中的对象，你就需要用IdentityHashMap，而不能使用其他Map实现。
+
+### 哈希和hashCode
+
+哈希的目的：使用一个对象来查找另一个对象
+
+哈希的价值：**用空间换时间**，维护了一个固定大小的哈希表（通常是个数组），通过计算的hashCode作为数组下标，然后用不同的策略解决冲突，**开放定址法**：线行探查法，平方探查法， **链地址法**，**再哈希法**，**建立公共溢出区**
+
+哈希表中的每一个位置通常称为**桶（bucket）**，桶的数量用2的整数次方，可以减少求余的操作
+
+#### String的hashCode
+
+如果两个String对象的字符串相同，那么他们指向的是同一块内存区域（**字符串常量池某个位置**），**hashCode也相同**
+
+#### 重写hashCode
+
+1. 同一个对象调用hashCode必须产生相同的值
+2. 速度快，且必须有意义
+3. 能够产生均匀分布的hashCode
+
+**Effective Java中的推荐做法：**
+
+初始化一个非零常量值，如17
+
+为对象内每个有意义的域都计算出一个int哈希码，然后全部相加，得到最后的哈希值
+
+### 选择接口的不同实现
+
+#### 对List的选择
+
+背后用数组支撑的**List和ArrayList**，随机访问不受列表大小影响
+
+**LinkedList**访问速度受列表大小影响
+
+**但随机插入的表现则正好相反**
+
+#### 对Set的选择
+
+HashSet性能基本上总比TreeSet好，特别是在**添加和查询**元素
+
+**TreeSet迭代比HashSet快**
+
+**！！！LinkedHashSet插入比HashSet慢，这是由于维护链表的开销造成的（这和List不一样）**
+
+#### 对Map的选择
+
+除了IdentityHashMap，**所有Map的插入都会随着容量增大而变慢**，但查找比插入代价少的多
+
+Hashtable和HashMap性能相当
+
+TreeMap通常比HashMap要慢
+
+**LinkedHashMap插入比HashMap慢一点，但是迭代要快**
+
+### Collection和Map的同步控制
+
+####Collections自动同步整个容器
+
+Collections.synchronizedList
+
+Collections.synchronizedLMap
+
+Collections.synchronizedSet
+
+...
+
+#### 快速报错（ConcurrentModificationException）
+
+保护机制，防止多个进程同时修改同一个容器的内容
+
+### 持有引用
+
+Java.lang.ref类库，这些类为垃圾回收提供更大的灵活性，当存在可能用尽内存的大对象的时候，这些类会很有用
+
+**继承自抽象类Reference**
+
+当GC考察的对象，**只能通过某个Reference对象才能获得的时候**，以下类提供了不同级别的指示
+
+以下三种引用对应的**“可获得性”**级别**由强到弱**
+
+####SoftReference
+
+实现内存敏感的高速缓存，**在 JVM 报告内存不足情况之前将清除所有的软引用**。注意：对象是否被释放取决于垃圾收集器的算法以及垃圾收集器运行时可用的内存数量。
+
+####WeakReference
+
+为实现**规范映射**（canonicalized mapping）而设计，它**不妨碍GC回收映射的键**（或值）。规范映射的对象实例可以在程序中多处被使用，以节省存储空间。**如果对象只剩下一个weak引用，那gc的时候就会回收**（不管内存是否够用）。和`SoftReference`都可以用来实现cache
+
+####PhantomReference（**必须与 `ReferenceQueue` 类一起使用，可用来替换finalize**）
+
+用于调度回收前的清理工作，比Java finalize更灵活
+
+SoftReference、WeakReference放入**ReferenceQueue（用作回收前清理）**是**可选的**
+
+但PhantomReference**必须依赖ReferenceQueue**
+
+#### Java 中的`finalize`有哪些问题？
+
+1. 影响 GC 性能，可能会引发`OutOfMemoryException`
+2. `finalize`方法中对异常处理不当会影响 GC
+3. 子类中未调用`super.finalize`会导致父类的`finalize`得不到执行
+
+总结一下就是：实现`finalize`对代码的质量要求非常高，一旦使用不当，就容易引发各种问题。
+
+
+### Java 1.0/1.1 的容器
+
+Vector：Java 1.0/1.1中唯一可扩展序列
+
+Enumeration（接口）：迭代器
+
+Hashtable：类似HashMap
+
+Stack：继承自Vector
+
+BitSet：最小长度是long 64，用于存储大对象
+
+## 第十八章 Java I/O系统
 

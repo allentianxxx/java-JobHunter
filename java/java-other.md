@@ -88,7 +88,7 @@ public static final Boolean FALSE = new Boolean(false);
 **1. 对象相等则hashCode一定相等**
 **2. hashCode相等对象未必相等**
 
-Object类的hashCode方法，调用c实现的
+Object类的hashCode方法，调用c实现的，默认是根据**对象地址**计算hashCode
 
 ```java
 public native int hashCode();
@@ -123,6 +123,18 @@ public boolean equals(Object obj) {
 **重写equals不重写hashCode**
 
 使用HashMap，HashSet时，逻辑上相等的两个元素被分到不同的bucket里，并且调用contains方法时即使已经存在逻辑上相等的元素也会返回false
+
+#### 重写equals需要满足5个条件
+
+**自反性**：对于任何非空引用值 x，x.equals(x) 都应返回 true。
+
+**对称性**：对于任何非空引用值 x 和 y，当且仅当 y.equals(x) 返回 true 时，x.equals(y) 才应返回 true。
+
+**传递性**：对于任何非空引用值 x、y 和 z，如果 x.equals(y) 返回 true， 并且 y.equals(z) 返回 true，那么 x.equals(z) 应返回 true。
+
+**一致性**：对于任何非空引用值 x 和 y，多次调用 x.equals(y) 始终返回 true 或始终返回 false， 前提是对象上 equals 比较中所用的信息没有被修改。
+
+**非空性**：对于任何非空引用值 x，x.equals(null) 都应返回 false。
 
 **即为了保证逻辑上的程序正确运行**
 
