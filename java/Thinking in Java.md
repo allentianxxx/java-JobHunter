@@ -1,4 +1,4 @@
-# Thinking in Java
+# **Thinking** in Java
 
 ## 第1章 对象导论
 
@@ -1056,7 +1056,7 @@ Pattern.compile功能更强大的正则表达式对象
 
 每编译一个新类就会为其生成Class对象，保存在.class文件
 
-**无论我们对引用进行怎样的类型转换，对象本身所对应的Class对象都是同一个**。由于Class对象的存在，Java不会因为类型的向上转换而迷失。这就是多态的原理。
+**无论我们对引用进行怎样的类型转换，对象本身所对应的Class对象都是同一个**。由于Class对象的存在，Java不会因为类型的向上转换而迷失。这就是**多态的原理**。
 
 **Class类（所有Class对象都属于这个类）的静态方法**
 
@@ -1390,7 +1390,7 @@ value只保存一份实例，节省存储空间
 
 允许释放映射所指的对象
 
-如果映射之外，没有引用指向某个”键“，那么此”键“可以被GC回收（不管内存是否够用）
+如果映射之外，没有引用指向某个”键“，那么此”键“可以被GC回收（**不管内存是否够用**）
 
 #### ConcurrentHashMap（线程安全）
 
@@ -1431,6 +1431,8 @@ value只保存一份实例，节省存储空间
 
 #### 对List的选择
 
+需要注意，List的**LinkedList和LinkedHashSet、LinkedHashMap很不一样**
+
 背后用数组支撑的**List和ArrayList**，随机访问不受列表大小影响
 
 **LinkedList**访问速度受列表大小影响
@@ -1441,23 +1443,23 @@ value只保存一份实例，节省存储空间
 
 HashSet性能基本上总比TreeSet好，特别是在**添加和查询**元素
 
-**TreeSet迭代比HashSet快**
+**<u>TreeSet迭代比HashSet快</u>**
 
 **！！！LinkedHashSet插入比HashSet慢，这是由于维护链表的开销造成的（这和List不一样）**
 
 #### 对Map的选择
 
-除了IdentityHashMap，**所有Map的插入都会随着容量增大而变慢**，但查找比插入代价少的多
+**除了IdentityHashMap**，**所有Map的插入都会随着容量增大而变慢**，但查找比插入代价少的多
 
 Hashtable和HashMap性能相当
 
 TreeMap通常比HashMap要慢
 
-**LinkedHashMap插入比HashMap慢一点，但是迭代要快**
+**！！！LinkedHashMap插入比HashMap慢一点，但是  <u>迭代要快</u> **
 
 ### Collection和Map的同步控制
 
-####Collections自动同步整个容器
+####Collections自动同步整个容器（synchronized多线程中重要部分）
 
 Collections.synchronizedList
 
@@ -1469,11 +1471,11 @@ Collections.synchronizedSet
 
 #### 快速报错（ConcurrentModificationException）
 
-保护机制，防止多个进程同时修改同一个容器的内容
+保护机制，防止**多个进程**同时修改同一个容器的内容
 
 ### 持有引用
 
-Java.lang.ref类库，这些类为垃圾回收提供更大的灵活性，当存在可能用尽内存的大对象的时候，这些类会很有用
+Java.lang.ref类库，这些类为垃圾回收提供更大的灵活性，当**存在可能用尽内存的大对象的时候**，这些类会很有用
 
 **继承自抽象类Reference**
 
@@ -1481,17 +1483,19 @@ Java.lang.ref类库，这些类为垃圾回收提供更大的灵活性，当存�
 
 以下三种引用对应的**“可获得性”**级别**由强到弱**
 
-####SoftReference
+####SoftReference（内存不足就回收）
 
 实现内存敏感的高速缓存，**在 JVM 报告内存不足情况之前将清除所有的软引用**。注意：对象是否被释放取决于垃圾收集器的算法以及垃圾收集器运行时可用的内存数量。
 
-####WeakReference
+####WeakReference（GC看见就回收，不管内存是否充足）
 
-为实现**规范映射**（canonicalized mapping）而设计，它**不妨碍GC回收映射的键**（或值）。规范映射的对象实例可以在程序中多处被使用，以节省存储空间。**如果对象只剩下一个weak引用，那gc的时候就会回收**（不管内存是否够用）。和`SoftReference`都可以用来实现cache
+为实现**规范映射**（canonicalized mapping）而设计，它**不妨碍GC回收映射的键**（或值）。规范映射的对象实例可以在程序中多处被使用，以节省存储空间。**如果对象只剩下一个weak引用，那GC的时候就会回收**（不管内存是否够用）。和`SoftReference`都可以用来实现cache
 
 ####PhantomReference（**必须与 `ReferenceQueue` 类一起使用，可用来替换finalize**）
 
-用于调度回收前的清理工作，比Java finalize更灵活
+**get方法永远返回null**
+
+用于**调度回收前的清理工作**，比Java finalize更灵活
 
 SoftReference、WeakReference放入**ReferenceQueue（用作回收前清理）**是**可选的**
 
@@ -1520,3 +1524,227 @@ BitSet：最小长度是long 64，用于存储大对象
 
 ## 第十八章 Java I/O系统
 
+#### File 类
+
+特定文件的名称
+
+一个目录下一组文件的名称
+
+**目录过滤器**：File.list(FilenameFilter f)，参数是FilenameFilter接口的一个实现（可以用匿名内部类）
+
+### 输入和输出
+
+#### 流
+
+有能力产出数据的数据源对象
+
+有能力接收数据的数据源对象
+
+**Java输入**：InputStream（**字节**）或Reader（**Unicode字符**）派生 read()
+
+**Java输出**：OutputStream（**字节**）或Writer（**Unicode字符**）派生 writer()
+
+**产生“流”（装饰器模式）**：通过叠合多个对象来提供期望的功能
+
+### 装饰器模式（Decorator Pattern，Wrapper）
+
+**定义**：装饰模式是在不必改变原类文件和使用继承的情况下，动态的扩展一个对象的功能。它是通过创建一个包装对象，也就是装饰来包裹真实的对象。
+
+1. **不改变原类文件**
+2. **不使用继承**
+3. **动态扩展**
+
+**优点**：灵活，动态扩展，用组合的方式取代了继承
+
+**缺点**：增加了代码复杂性
+
+![20130627214940437](https://ws3.sinaimg.cn/large/006tKfTcgy1g0n89z4vlsj310k0exad8.jpg)
+
+### Java 1.0
+
+#### InputStream（字节输入的超级父类，抽象类）
+
+InputStream的**实体子类！**！！，**特别注意FilterInputStream（装饰器父类）**
+
+| FilterInputStream                             | InputStream体系的装饰器父类          |
+| --------------------------------------------- | ------------------------------------ |
+| ByteArrayInputStream                          | 内存缓冲区                           |
+| ~~StringBufferInputStream~~（**Deprecated**） | 字符串转换成InputStream              |
+| FileInputStream                               | 从文件中读取信息                     |
+| PipedInputStream                              | 多线程中数据源                       |
+| SequenceInputStream                           | 多个InputStream转换成一个InputStream |
+
+FilterInputStream的子类（**InputStream的所有装饰器**）
+
+| DataInputStream（装饰器）                 | 按照可移植方式从流读取 <u>基本数据类型</u>           |
+| ----------------------------------------- | ---------------------------------------------------- |
+| BufferedInputStream（装饰器）             | 使用缓冲区读取数据                                   |
+| ~~LineNumberInputStream~~(**Deprecated**) | 跟踪输入流的行号                                     |
+| PushbackInputStream（装饰器）             | 弹出最后一个字节的缓冲区，可以将最后一个读到字符回退 |
+
+#### OutputStream（字节输出的超级父类）
+
+OutputStream的**实体子类**！！！，**特别注意FilterOutputStream（装饰器父类）**
+
+| FilterOutputStream      | OutputStream体系的装饰器父类         |
+| ----------------------- | ------------------------------------ |
+| ByteArrayOutputStream   | 内存缓冲区                           |
+| FileOututStream         | 写入文件                     |
+| PipedOutputStream        | 写入其中数据都会作为PipedInputStream输入                       |
+
+FilterOutputStream的子类（**OutputStream的所有装饰器**）
+
+| DataOutputStream（装饰器）     | 按照可移植方式向流写入 <u>基本数据类型</u>                   |
+| ------------------------------ | ------------------------------------------------------------ |
+| BufferedOutputStream（装饰器） | 使用缓冲区写数据                                             |
+| PrintStream（装饰器）          | **产生格式化输出**（DataOutputStream处理数据存储，PrintStream处理**显示**） |
+
+----
+
+Java 1.1，**新增Reader和Writer体系**，新类库也比旧类库**更快**
+
+InputStream -> **InputStreamReader（适配器）**-> Reader
+
+OutputStream -> **OutputStreamWriter（适配器）** -> Writer
+
+**以下在Java 1.1没有对应的类**：
+
+- DataOutputStream
+- File
+- RandomAccessFile
+- SequenceInputStream
+
+---
+
+### Java 1.1
+
+####Reader（字符输入的超级父类）
+
+Reader的子类
+
+| FilterReader              | Reader体系的装饰器父类（抽象类）                             |
+| ------------------------- | ------------------------------------------------------------ |
+| InputStreamReader         | InputStream转换为Reader的**适配器**                          |
+| StringReader（装饰器）    | **注意：**这里没继承装饰器父类FilterReader！！！             |
+| BufferedReader（装饰器）  | **注意：**这里没继承装饰器父类FilterReader！！！**只有在需要readLine的时候使用，此外优先使用DataInputStream** |
+| CharArrayReader（装饰器） | **注意：**这里没继承装饰器父类FilterReader！！！             |
+| PipedReader（装饰器） | **注意：**这里没继承装饰器父类FilterReader！！！             |
+
+
+FilterReader的子类（**Reader装饰器**）
+
+```
+PushbackReader(装饰器)     |    注意：这和FilterInputStream很不一样
+```
+
+**其他装饰器：**
+
+FileReader（装饰器） (继承自**InputStreamReader（适配器）**)
+
+LineNumberReader（装饰器）（继承自**BufferedReader（装饰器）**）
+
+####Writer（字符输入的超级父类）
+
+Writer的子类
+
+| FilterWriter              | Writer体系的装饰器父类（抽象类），没有任何子类！！！！！！！   |
+| ------------------------- | ------------------------------------------------ |
+| OutputStreamReader        | OutputStream转换为Writer的**适配器**             |
+| StringWriter（装饰器）    | **注意：**这里没继承装饰器父类FilterWriter！！！ |
+| BufferedWriter（装饰器）  | **注意：**这里没继承装饰器父类FilterWriter！！！ |
+| CharArrayWriter（装饰器） | **注意：**这里没继承装饰器父类FilterWriter！！！ |
+| PipedWriter（装饰器） | **注意：**这里没继承装饰器父类FilterWriter！！！ |
+| **PrintWriter（装饰器，适配器）** | 1.为了从**PrintStream**过渡，提供了接收PrintStream对象接口                                 2.默认使用**BufferedWriter**，构造器可以提供一个Boolean**是否自动flush** |
+
+**其他装饰器：**
+
+FileWriter（装饰器）（继承自**OutputStreamWriter（适配器）**）
+
+### 自我独立的RandomAccessFile
+
+适用于大小已知的记录组成的文件
+
+**可以在一个文件内向前向后移动**，类似于把DataInputStream和DataOutputStream组合使用（因为使用了相同的接口：DataInput和DataOutput）
+
+**JDK 1.4后大多数功能被NIO中的内存映射文件替代**
+
+### 标准I/O
+
+**概念来自**：Unix中“程序所使用的单一信息流”
+
+System.out（**包装好的PrintStream对象**）
+
+System.err（**包装好的PrintStream对象**）
+
+System.in（**未包装的InputStream对象**）：读取前必须进行包装
+
+#### 标准I/O重定向（重定向的是@字节流@）
+
+**System的静态方法：**
+
+**setIn(InputStream)**
+
+**setOut(PrintStream)**
+
+**setErr(PrintStream)**
+
+### 进程控制
+
+使用java.lang.ProcessBuilder执行命令，然后返回一个Process
+
+**获取命令执行时的标准输出流：**Process.getInputStream()
+
+注意：这里不是获取OutputStream，因为**InputStream是唯一能够从里面获取数据的**
+
+**获取命令执行时的标准错误流：**Process.getErrorStream()
+
+如果要在InputStream里获取标准错误流，先调用**Process.redirectErrorStream(true)**再去获取InputStream
+
+### 新I/O（NIO，**同步非阻塞**）
+
+Java NIO 是 java 1.4, 之后新出的一套IO接口NIO中的N可以理解为Non-blocking，不单纯是New。
+
+速度的提高来自于更接近操作系统执行I/O的方法：**通道和缓冲区**
+
+唯一直接与通道交互的缓冲器就是ByteBuffer
+
+**NIO的特性/NIO与IO区别:**
+
+- 1)IO是面向流的，NIO是面向**缓冲区（Buffer）**的
+- 2)IO流是阻塞的，NIO流是不阻塞的
+- 3)NIO有选择器，而IO没有。
+
+**NIO核心组件简单介绍**
+
+- **Channels**
+
+- **Buffers**
+
+- **Selectors**
+
+**读数据和写数据方式:**
+
+  - 从通道进行数据读取 ：创建一个缓冲区，然后请求通道读取数据。
+  - 从通道进行数据写入 ：创建一个缓冲区，填充数据，并要求通道写入数据。
+
+
+
+![Jietu20190228-193812](https://ws1.sinaimg.cn/large/006tKfTcgy1g0mdiyy9h2j31060kgmzp.jpg)
+
+
+
+![Jietu20190228-193825](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdj2kdpkj30zz0faq4q.jpg)
+
+![Jietu20190228-193839](https://ws2.sinaimg.cn/large/006tKfTcgy1g0mdj9hftnj312909yjt6.jpg)
+
+![Jietu20190228-194039](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdje7m29j31640ov0wi.jpg)
+
+![image-20190228195133193](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdru7xs0j30kz0kq0wn.jpg)
+
+### 对象序列化
+
+
+
+
+
+![Jietu20190228-194148](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdjhxd0oj30rg0fojt5.jpg)
