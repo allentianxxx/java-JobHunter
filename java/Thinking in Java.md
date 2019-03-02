@@ -1,4 +1,4 @@
-# **Thinking** in Java
+# ****Thinking**** in Java
 
 ## 第1章 对象导论
 
@@ -1548,6 +1548,8 @@ BitSet：最小长度是long 64，用于存储大对象
 
 ### 装饰器模式（Decorator Pattern，Wrapper）
 
+> http://www.cnblogs.com/zuoxiaolong/p/pattern11.html
+
 **定义**：装饰模式是在不必改变原类文件和使用继承的情况下，动态的扩展一个对象的功能。它是通过创建一个包装对象，也就是装饰来包裹真实的对象。
 
 1. **不改变原类文件**
@@ -1706,11 +1708,16 @@ Java NIO 是 java 1.4, 之后新出的一套IO接口NIO中的N可以理解为Non
 
 速度的提高来自于更接近操作系统执行I/O的方法：**通道和缓冲区**
 
-唯一直接与通道交互的缓冲器就是ByteBuffer
+### 通道分类
+
+- **网络读写（SelectableChannel）**
+- **文件操作（FileChannel）**
+
+**唯一直接与通道交互的缓冲器就是ByteBuffer**
 
 **NIO的特性/NIO与IO区别:**
 
-- 1)IO是面向流的，NIO是面向**缓冲区（Buffer）**的
+- 1)IO是**面向流**的，NIO是**面向缓冲区（Buffer）**的
 - 2)IO流是阻塞的，NIO流是不阻塞的
 - 3)NIO有选择器，而IO没有。
 
@@ -1720,18 +1727,207 @@ Java NIO 是 java 1.4, 之后新出的一套IO接口NIO中的N可以理解为Non
 
 - **Buffers**
 
-- **Selectors**
+- **Selectors**（方法选择集，用于以原始的**字节形式**或**基本数据类型**输出和读取数据，无法读取或输出对象）
 
-**读数据和写数据方式:**
+**读数据和写数据方式:**（通道像煤矿，缓冲器是卡车）
 
   - 从通道进行数据读取 ：创建一个缓冲区，然后请求通道读取数据。
   - 从通道进行数据写入 ：创建一个缓冲区，填充数据，并要求通道写入数据。
 
+**旧I/O类修改以产生FileChannel（注意：都是面向字节）**
+
+- **FileInputStream**
+- **FileOutputStream**
+- **RandomAccessFile（即读又写）**
+
+Reader和Writer这种**字符操作不能产生Channel**，但java.nio.channel.Channels提供了在通道中产生Reader和Writer 的方法 new Reader, new Writer
+
+```java
+FileChannel fc = new FileOutputStream("data.txt").getChannel();
+fc.write(ByteBuffer.wrap("some text".getBytes()));	//这里是把ByteBuffer里的值写入通道
+fc.close();
+fc = new RandomAccessFile("data.txt","rw").getChannel();
+fc.position(fc.size()); //移动到最后
+fc.write(ByteBuffer.wrap("some more".getBytes()));
+fc.close();
+fc = new FileInputStream("data.txt").getChannel();
+ByteBuffer buff = ByteBuffer.allcote(1024);	//对于只读访问，必须静态分配ByteBuffer
+fc.read(buff);	//把通道里的值读到ByteBuffer里
+buff.flip(); //准备缓冲器，以便从中读取信息，每次read后都要调用flip
+while(buff.hasRemaining()){
+    System.out.println((char)buff.get());
+}
+// 输出
+//some text some more
+```
+
+#### 转换数据
+
+缓冲器容纳的是普通字节，为了转换成有意义字符，要么在输入缓冲器时**编码**，要么在缓冲期输出时**解码**
+
+```java
+String encoding = System.getProperty("file.encoding");	//获取系统编码
+System.out.println(CharSet.forName(encoding).decode(buff))； //用系统编码去解码buff直接输出
+fc.write(ByteBuffer.wrap("some text").getBytes("UTF-16BE"));//写入buff的时候编码
+fc.clear();
+fc.read(buff);
+fc.flip();
+System.out.println(buff.asCharBuffer()); //直接转换成CharBuffer输出，调用了CharBuffer的toString()，由于写入fc时进行了编码，所以读出时直接转换成CharBuffer输出也不会乱码
+```
+
+#### 视图缓冲器
+
+ByteBuffer只能保存字节数据，但是可以用不同的**基本类型视图去查看底层ByteBuffer**
+
+通过ByteBuffer的不同视图，可以通过**put()方法为其添加不同的基本类型数据**，但**添加short数据时必须强制类型转换**
+
+### 字节存放顺序
+
+**big endian**：高位字节放在低地址存储单元（**默认**）
+
+**little endian**：高位字节放在高存储单元
+
+#### 缓冲器细节
+
+![image-20190302165147490](https://ws1.sinaimg.cn/large/006tKfTcgy1g0ojtisc9ij31bu0lg11k.jpg)
+
+#### 内存映射文件
+
+允许创建和修改因为太大而不能放入内存的文件
+
+FileChannel.map(FileChannel.MapMode.READ_WRITE, 0, length)
+
+产生的**MapByteBuffer（特殊类型的直接缓冲器，继承自ByteBuffer，具有其所有方法）**
+
+**建立映射的开销很大，但是整体收益比I/O流好**
+
+#### 文件加锁（只能是通道上的，不能是缓冲器）
+
+JDK1.4引入的文件加锁，允许**同步**访问某个作为共享资源的文件。
+
+文件锁对于其他的操作系统进程是可见的，Java的文件锁**映射到了本地操作系统的加锁工具**
+
+**FileLock fl = FileChannel.lock()**：阻塞
+
+**FileLock fl = FileChannel.tryLock()**：非阻塞
+
+**使用共享锁必须由操作系统底层支持，不支持则默认独占锁**
+
+可以对**内存映射文件部分加锁**，例如，数据库就是这样，所以可以多个用户同时访问
+
+**JVM会自动释放锁**，或者关闭加锁的通道，也可以显示的关闭 FileLock.release()
+
+### 压缩
+
+Java I/O中类库支持压缩的类从InputStream和OutputStream继承而来
+
+**压缩按字节方式而不是字符方式**
+
+**GZIP**：对单个数据流进行压缩
+
+**Zip**：保存多个文件，用了Checksum类（Adler32，快，CRC32，准）来计算校验文件的校验和
+
+**Java档案文件（JAR）**：包含一组压缩文件，和描述这些文件的文件清单
+
+### 对象序列化
+
+产生背景：在程序不运行的情况下仍能保存对象信息，再重新运行程序的时候就可以恢复到之前运行状态。
+
+主要为了支持两种特性：RMI，Java Beans
+
+**Java 默认的对象序列化**：**实现了Serializable接口**的对象转换成一个**字节**序列（跨平台）
+
+要从字节序列恢复一个对象，**必须保证JVM能找到对应的.class文件**
+
+如下，写入序列化对象，和恢复序列化对象的方法
+
+- **ObjectOutputStream.writeObject()**
+- **ObjectInputStream.readObject()**
+
+```java
+ObjectOutputStream out  = new ObjectOputputStream(new FileOutputStream("worm.out"));
+out.writeObject(new Worm(6, 'a')); //将对象自动序列化之后的字节序列写入文件
+ObjectInputStream in = new ObjectInputStream(new FileInputStream("worm.out"));
+Worm w = (Worm)in.readObject();
+```
+
+**注意**：对一个Serializable对象进行还原的时候，是直接从字节序列中还原的，**没有调用任何构造器，包括默认无参构造器**
+
+### 序列化的控制
+
+#### 实现Externalizable接口（继承自Serializable接口）
+
+新增了两个方法，**会在序列化和反序列化过程自动调用**
+
+- writeExternal()
+- readExternal()
+
+**和Serializable区别**：
+
+- 调用所有普通默认构造器
+- 会调用字段定义时初始化
+
+#### transient关键字（用于Serializable对象）
+
+表示此字段不需要被序列化时保存，也不会在反序列化时被尝试恢复（**注意：仅对于自动序列化机制**）
+
+**但是如果在添加的readObject方法和writeObject方法中显示保存和恢复transient字段是可以的**
+
+**注意：**也可以继承Externalizable接口，那么没有东西可以自动序列化
+
+**static字段也不能被序列化**
+
+#### Externalizable的替代实现
+
+在Serializable接口的实现类中**添加** （并不是覆盖或实现）
+
+- private void writeObject(ObjectOutputStream stream) throws IOException
+- private void readObject(ObjectInputStream stream) throws IOException
+
+注意这里和ObjectOutputStream，和ObjectInputStream的方法同名了，这里其实是一个**混乱的设计**，在序列化的过程中会**反射调用**添加的这两个方法而不是去使用默认序列化机制
+
+### 如何正确序列化Class类
+
+
+
+### 常见的序列化协议有哪些
+
+- COM主要用于Windows平台，并没有真正实现跨平台，另外COM的序列化的原理利用了编译器中虚表，使得其学习成本巨大。
+
+- CORBA是早期比较好的实现了跨平台，跨语言的序列化协议。COBRA的主要问题是参与方过多带来的版本过多，版本之间兼容性较差，以及使用复杂晦涩。
+
+- XML & SOAP
+
+  - XML是一种常用的序列化和反序列化协议，具有跨机器，跨语言等优点。
+  - SOAP（Simple Object Access protocol） 是一种被广泛应用的，基于XML为序列化和反序列化协议的结构化消息传递协议。SOAP具有安全、可扩展、跨语言、跨平台并支持多种传输层协议。
+
+- JSON（JavaScript Object Notation）
+
+  - 这种Associative array格式非常符合工程师对对象的理解。
+  - 它保持了XML的人眼可读（Human-readable）的优点。
+  - 相对于XML而言，序列化后的数据更加简洁。
+  - 它具备javascript的先天性支持，所以被广泛应用于Web browser的应用常景中，是Ajax的事实标准协议。
+  - 与XML相比，其协议比较简单，解析速度比较快。
+  - 松散的Associative array使得其具有良好的可扩展性和兼容性。
+
+- Thrift是Facebook开源提供的一个高性能，轻量级RPC服务框架，其产生正是为了满足当前大数据量、分布式、跨语言、跨平台数据通讯的需求。
+
+- Avro的产生解决了JSON的冗长和没有IDL的问题，Avro属于Apache Hadoop的一个子项目。 Avro提供两种序列化格式：JSON格式或者Binary格式。Binary格式在空间开销和解析性能方面可以和Protobuf媲美，JSON格式方便测试阶段的调试。适合于高性能的序列化服务。
+
+### Preferences API（相比对象序列化，它和对象持久性更密切）
+
+**键值对**
+
+用于小的、受限的数据集合（只能存储**基本类型和字符串，每个字符串不超过8K**）
+
+存储用户偏好以及程序配置项
+
+**利用系统资源存储，如Windows里就是注册表**
+
+通常是以类名命名的单一节点
 
 
 ![Jietu20190228-193812](https://ws1.sinaimg.cn/large/006tKfTcgy1g0mdiyy9h2j31060kgmzp.jpg)
-
-
 
 ![Jietu20190228-193825](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdj2kdpkj30zz0faq4q.jpg)
 
