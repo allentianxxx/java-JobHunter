@@ -515,7 +515,7 @@ abstract void f();//抽象方法没有方法体
 
 接口的多态性是指实现接口的类重写接口的抽象方法
 
-接口可以通过extends接口来扩展接口
+接口**可以通过extends接口来扩展接口**
 
 接口最常用场景：**策略设计模式**，体现在，一个方法提供一个接口类型的参数，让调用者传入有接口具体实现的类的对象，即不同类型的对象来得到了不同的实现。
 
@@ -1578,11 +1578,11 @@ InputStream的**实体子类！**！！，**特别注意FilterInputStream（装�
 
 FilterInputStream的子类（**InputStream的所有装饰器**）
 
-| DataInputStream（装饰器）                 | 按照可移植方式从流读取 <u>基本数据类型</u>           |
-| ----------------------------------------- | ---------------------------------------------------- |
-| BufferedInputStream（装饰器）             | 使用缓冲区读取数据                                   |
-| ~~LineNumberInputStream~~(**Deprecated**) | 跟踪输入流的行号                                     |
-| PushbackInputStream（装饰器）             | 弹出最后一个字节的缓冲区，可以将最后一个读到字符回退 |
+| DataInputStream（装饰器）                 | 按照可移植方式从流读取 <u>基本数据类型 和 String 对象</u> |
+| ----------------------------------------- | --------------------------------------------------------- |
+| BufferedInputStream（装饰器）             | 使用缓冲区读取数据                                        |
+| ~~LineNumberInputStream~~(**Deprecated**) | 跟踪输入流的行号                                          |
+| PushbackInputStream（装饰器）             | 弹出最后一个字节的缓冲区，可以将最后一个读到字符回退      |
 
 #### OutputStream（字节输出的超级父类）
 
@@ -1679,6 +1679,10 @@ System.out（**包装好的PrintStream对象**）
 System.err（**包装好的PrintStream对象**）
 
 System.in（**未包装的InputStream对象**）：读取前必须进行包装
+
+```java
+BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
+```
 
 #### 标准I/O重定向（重定向的是@字节流@）
 
@@ -1837,6 +1841,8 @@ Java I/O中类库支持压缩的类从InputStream和OutputStream继承而来
 
 **Java 默认的对象序列化**：**实现了Serializable接口**的对象转换成一个**字节**序列（跨平台）
 
+**Serializable接口是一个标记接口，没有任何方法声明**
+
 要从字节序列恢复一个对象，**必须保证JVM能找到对应的.class文件**
 
 如下，写入序列化对象，和恢复序列化对象的方法
@@ -1855,17 +1861,18 @@ Worm w = (Worm)in.readObject();
 
 ### 序列化的控制
 
-#### 实现Externalizable接口（继承自Serializable接口）
+#### 实现Externalizable接口（继承自Serializable接口，必须要有无参构造器）
 
 新增了两个方法，**会在序列化和反序列化过程自动调用**
 
-- writeExternal()
-- readExternal()
+- **public** void **writeExternal(ObjectOutput out)** throws IOException
+- **public** void **readExternal(OubjectInput in)** throws IOException
 
 **和Serializable区别**：
 
-- 调用所有普通默认构造器
-- 会调用字段定义时初始化
+- **会调用字段定义时初始化（在调用默认构造器之前调用）**
+- **调用所有普通默认构造器**
+- 没有在writeExternal和readExternal保存恢复的域就会用**默认构造器里的初始化值**或**字段初始化定义值（如果默认构造器里没有初始化对应字段值）**
 
 #### transient关键字（用于Serializable对象）
 
@@ -1877,18 +1884,18 @@ Worm w = (Worm)in.readObject();
 
 **static字段也不能被序列化**
 
-#### Externalizable的替代实现
+#### Externalizable的替代实现（但并不会像其一样调用默认构造器）
 
 在Serializable接口的实现类中**添加** （并不是覆盖或实现）
 
-- private void writeObject(ObjectOutputStream stream) throws IOException
-- private void readObject(ObjectInputStream stream) throws IOException
+- **private** void **writeObject(ObjectOutputStream stream)** throws IOException
+- **private** void **readObject(ObjectInputStream stream)** throws IOException
 
-注意这里和ObjectOutputStream，和ObjectInputStream的方法同名了，这里其实是一个**混乱的设计**，在序列化的过程中会**反射调用**添加的这两个方法而不是去使用默认序列化机制
+注意这里和ObjectOutputStream，和ObjectInputStream的方法同名了，这里其实是一个**混乱的设计**，在序列化的过程中会**反射调用**添加的这两个方法**而不是去使用默认序列化机制**
 
 ### 如何正确序列化Class类
 
-
+Class类是Serializable的，但是想要通过序列化Class对象保存static值，必须手动显示的去writeObject和readObject，不然会有问题
 
 ### 常见的序列化协议有哪些
 
@@ -1926,21 +1933,26 @@ Worm w = (Worm)in.readObject();
 
 通常是以类名命名的单一节点
 
+##第二十一章 并发
 
-![Jietu20190228-193812](https://ws1.sinaimg.cn/large/006tKfTcgy1g0mdiyy9h2j31060kgmzp.jpg)
+**并发解决的问题**：
 
-![Jietu20190228-193825](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdj2kdpkj30zz0faq4q.jpg)
+- 速度
+- 设计可管理性
 
-![Jietu20190228-193839](https://ws2.sinaimg.cn/large/006tKfTcgy1g0mdj9hftnj312909yjt6.jpg)
+多核处理器可以实现真正意义上的并行，但**并发针对的是单核处理器上的程序性能**
 
-![Jietu20190228-194039](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdje7m29j31640ov0wi.jpg)
+**单核处理器的并发**：实际是在切换多个不同任务**线程**，增加了上下文切换的开销
 
-![image-20190228195133193](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdru7xs0j30kz0kq0wn.jpg)
+**并发对于单核处理器的意义**：程序存在阻塞（通常是I/O）
 
-### 对象序列化
+多线程最基本的难题：保证共享资源（如内存、I/O）的独立访问
 
+**Java中多线程**：在执行程序的单一进程中实现的多线程，这也保证了并发程序可移植性
 
+**Java线程机制**：抢占式，调度机制会周期性的中断线程，将上下文切换到另一个线程
 
+Java对线程数量的限制依赖于Java版本
 
+**协作多线程**：每个线程都自动地放弃控制权，要求编写某种类型让步语句。其优势在于（1.上下文切换开销比抢占式低 2.理论上不限制线程的数量）
 
-![Jietu20190228-194148](https://ws3.sinaimg.cn/large/006tKfTcgy1g0mdjhxd0oj30rg0fojt5.jpg)
