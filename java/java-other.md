@@ -265,9 +265,40 @@ int[] b = {1, 2, 3, 4, 5, 6,}; //A trailing comma causes no compiler error
   - **子类是不继承父类的static变量和方法的**。随着类的加载而加载，继承毛线。因为这是属于类本身的。但是子类是可以访问的。 
   - 子类和父类中同名的static变量和方法都是相互独立的，并不存在任何的重写的关系。
 -  **3、子类可以通过super，表示父类的引用，调用父类的属性或者方法。**
-   （构造函数和代码块是无法被继承）
+   （构造函数`隐式static`和代码块是无法被继承）
 
 
 
+## String、StringBuffer和StringBuilder区别
 
+####1. 数据可变和不可变
+
+1. `String`底层使用一个不可变的字符数组`private final char value[];`所以它内容不可变。
+2. `StringBuffer`和`StringBuilder`都继承了**`AbstractStringBuilder`**底层使用的是可变字符数组：`char[] value;`
+
+#### 2. 线程安全
+
+`StringBuilder`是线程不安全的，效率较高；而`StringBuffer`是线程安全的，效率较低。
+
+通过他们的`append()`方法来看，`StringBuffer`是有同步锁，而`StringBuilder`没有：
+
+```java
+@Override
+public synchronized StringBuffer append(Object obj) {
+    toStringCache = null;
+    super.append(String.valueOf(obj));
+    return this;
+}
+@Override
+public StringBuilder append(String str) {
+    super.append(str);
+    return this;
+}
+```
+
+##### 3. 相同点
+
+`StringBuilder`与`StringBuffer`有公共父类`AbstractStringBuilder`。
+
+最后，**操作可变字符串速度**：`StringBuilder > StringBuffer > String`，这个答案就显得不足为奇了。
 
