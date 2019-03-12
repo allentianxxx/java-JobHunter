@@ -302,3 +302,1090 @@ public StringBuilder append(String str) {
 
 最后，**操作可变字符串速度**：`StringBuilder > StringBuffer > String`，这个答案就显得不足为奇了。
 
+
+
+## 移位运算和异或运算（mod 2加法）
+
+题目一：最有效率的计算2*8
+
+```java
+2<<3
+```
+
+题目二：不借助第三方变量实现两个数的交换
+
+```java
+//方法一：这确实是一种方法，但是不推荐使用，因为如果两个数的值过大，相加后可能超出int范围
+a = a + b;
+b = a - b;
+a = a - b;
+//方法二：其实原理和上面是一样的，但加法不进位，减法不移位，这两种独特的加减的运算是一样的，合为一个异或^
+a = a ^ b;
+b = a ^ b;
+a = a ^ b;
+```
+
+
+
+## 容器源码分析
+
+### ArrayList
+
+#### 1. 概览
+
+实现了 RandomAccess 接口，因此支持随机访问。这是理所当然的，因为 ArrayList 是基于数组实现的。
+
+```java
+public class ArrayList<E> extends AbstractList<E>
+        implements List<E>, RandomAccess, Cloneable, java.io.Serializable
+```
+
+**数组的默认大小为 10**。，**最大大小为Integer.MAX_VALUE - 8**（因为有些VM会在数组里保存一些头部信息）
+
+```java
+/**
+ * 默认初始化容量
+ */
+private static final int DEFAULT_CAPACITY = 10;
+/**
+ * 如果自定义容量为0，则会默认用它来初始化ArrayList。或者用于空数组替换。
+ */
+private static final Object[] EMPTY_ELEMENTDATA = {};
+/**
+ * 如果没有自定义容量，则会使用它来初始化ArrayList。或者用于空数组比对。
+ */
+private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+/**
+ * 这就是ArrayList底层用到的数组
+ * 非私有，以简化嵌套类访问
+ * transient 在已经实现序列化的类中，不允许某变量序列化
+ */
+transient Object[] elementData;
+/**
+ * 实际ArrayList集合大小
+ */
+private int size;
+/**
+ * 可分配的最大容量
+ */
+private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+```
+
+![img](https://github.com/CyC2018/CS-Notes/raw/master/docs/notes/pics/7935be3d-c2b3-4213-90c9-1e68ec4ac4e7.png)
+
+#### 构造函数
+
+注意这里，这里如果指定初始化容量的话，就**直接分配一个指定大小的对象数组，并不是懒加载！！！**
+
+```java
+public ArrayList(int initialCapacity) {
+    if (initialCapacity > 0) {
+        this.elementData = new Object[initialCapacity];
+    } else if (initialCapacity == 0) {
+        this.elementData = EMPTY_ELEMENTDATA;
+    } else {
+        throw new IllegalArgumentException("Illegal Capacity: "+
+                                           initialCapacity);
+    }
+}
+```
+
+#### 2. 扩容
+
+添加元素时使用 ensureCapacityInternal() 方法来保证容量足够，如果不够时，需要使用 grow() 方法进行扩容，新容量的大小为 `oldCapacity + (oldCapacity >> 1)`，**默认是旧容量的 1.5 倍**，如果1.5倍不够会使用真实需要的容量（前提：真实容量 < Integer.MAX_VALUE）
+
+扩容操作需要调用 **`Arrays.copyOf()` **把原数组整个复制到新数组中，这个操作代价很高，<u>因此最好在创建 ArrayList 对象时就指定大概的容量大小</u>，减少扩容操作的次数。
+
+```java
+public boolean add(E e) {
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    elementData[size++] = e;
+    return true;
+}
+
+private void ensureCapacityInternal(int minCapacity) {
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+        minCapacity = Math.max(DEFAULT_CAPACITY, minCapacity);
+    }
+    ensureExplicitCapacity(minCapacity);
+}
+
+private void ensureExplicitCapacity(int minCapacity) {
+    modCount++;
+    // overflow-conscious code
+    if (minCapacity - elementData.length > 0)
+        grow(minCapacity);
+}
+
+private void grow(int minCapacity) {
+    // overflow-conscious code
+    int oldCapacity = elementData.length;
+    int newCapacity = oldCapacity + (oldCapacity >> 1);	//算术右移相当于除以2
+    if (newCapacity - minCapacity < 0)
+        newCapacity = minCapacity;
+    if (newCapacity - MAX_ARRAY_SIZE > 0)
+        newCapacity = hugeCapacity(minCapacity);
+    // minCapacity is usually close to size, so this is a win:
+    elementData = Arrays.copyOf(elementData, newCapacity);
+}
+```
+
+#### 3. 删除元素
+
+需要调用 **`System.arraycopy()`** 将 index+1 后面的元素都复制到 index 位置上，该操作的时间复杂度为 O(N)，可以看出 **ArrayList 删除元素的代价是非常高的**。
+
+```java
+public E remove(int index) {
+    rangeCheck(index);
+    modCount++;
+    E oldValue = elementData(index);
+    int numMoved = size - index - 1;
+    if (numMoved > 0)
+        System.arraycopy(elementData, index+1, elementData, index, numMoved);
+    elementData[--size] = null; // clear to let GC do its work
+    return oldValue;
+}
+```
+
+#### 4. Fail-Fast
+
+modCount 用来记录 ArrayList 结构发生变化的次数。结构发生变化是指添加或者删除至少一个元素的所有操作，或者是调整内部数组的大小，**仅仅只是设置元素的值不算结构发生变化**。
+
+在进行序列化或者迭代等操作时，需要比较操作前后 modCount 是否改变，如果改变了需要抛出 **ConcurrentModificationException**。禁止多进程同时修改同一容器内容。
+
+```java
+private void writeObject(java.io.ObjectOutputStream s)
+    throws java.io.IOException{
+    // Write out element count, and any hidden stuff
+    int expectedModCount = modCount;
+    s.defaultWriteObject();
+
+    // Write out size as capacity for behavioural compatibility with clone()
+    s.writeInt(size);
+
+    // Write out all elements in the proper order.
+    for (int i=0; i<size; i++) {
+        s.writeObject(elementData[i]);
+    }
+
+    if (modCount != expectedModCount) {
+        throw new ConcurrentModificationException();
+    }
+}
+```
+
+#### 5. 序列化
+
+ArrayList 基于数组实现，并且具有**动态扩容**特性，因此保存元素的数组不一定都会被使用，那么就没必要全部进行序列化。
+
+保存元素的数组 elementData 使用 transient 修饰，该关键字声明数组默认不会被序列化。
+
+```java
+transient Object[] elementData; // non-private to simplify nested class access
+```
+
+ArrayList 实现了 writeObject() 和 readObject() 来控制只序列化数组中有元素填充那部分内容。
+
+```java
+private void readObject(java.io.ObjectInputStream s)
+    throws java.io.IOException, ClassNotFoundException {
+    elementData = EMPTY_ELEMENTDATA;
+
+    // Read in size, and any hidden stuff
+    s.defaultReadObject();
+
+    // Read in capacity
+    s.readInt(); // ignored
+
+    if (size > 0) {
+        // be like clone(), allocate array based upon size not capacity
+        ensureCapacityInternal(size);
+
+        Object[] a = elementData;
+        // Read in all elements in the proper order.
+        for (int i=0; i<size; i++) {
+            a[i] = s.readObject();
+        }
+    }
+}
+```
+
+```java
+private void writeObject(java.io.ObjectOutputStream s)
+    throws java.io.IOException{
+    // Write out element count, and any hidden stuff
+    int expectedModCount = modCount;
+    s.defaultWriteObject();
+
+    // Write out size as capacity for behavioural compatibility with clone()
+    s.writeInt(size);
+
+    // Write out all elements in the proper order.
+    for (int i=0; i<size; i++) {
+        s.writeObject(elementData[i]);
+    }
+
+    if (modCount != expectedModCount) {
+        throw new ConcurrentModificationException();
+    }
+}
+```
+
+序列化时需要使用 ObjectOutputStream 的 writeObject() 将对象转换为字节流并输出。而 writeObject() 方法在传入的对象存在 writeObject() 的时候会去反射调用该对象的 writeObject() 来实现序列化。反序列化使用的是 ObjectInputStream 的 readObject() 方法，原理类似，这里相当于使用Serializable接口，实现了类似Externalizable 的功能。
+
+**这里要遍历序列化elemntData数组的原因是，只序列化其存储的元素（通常其会预留存储空间）**
+
+```java
+ArrayList list = new ArrayList();
+ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file));
+oos.writeObject(list);
+```
+
+####**trimToSize()方法：**
+
+> 用来最小化实例存储，将容器大小调整为当前元素所占用的容量大小。
+
+```java
+/**
+ * 这个方法用来最小化实例存储。
+ */
+public void trimToSize() {
+    modCount++;
+    if (size < elementData.length) {
+        elementData = (size == 0)
+          ? EMPTY_ELEMENTDATA
+          : Arrays.copyOf(elementData, size);
+    }
+}
+```
+
+####**clone()方法**
+
+>  用来克隆出一个新数组。
+
+```java
+public Object clone() {
+    try {
+        ArrayList<?> v = (ArrayList<?>) super.clone();
+        v.elementData = Arrays.copyOf(elementData, size);
+        v.modCount = 0;
+        return v;
+    } catch (CloneNotSupportedException e) {
+        // this shouldn't happen, since we are Cloneable
+        throw new InternalError(e);
+    }
+}
+```
+
+通过调用`Object`的`clone()`方法来得到一个新的`ArrayList`对象，然后将`elementData`复制给该对象并返回。
+
+####**add(E e)方法**
+
+>  在数组末尾添加元素
+
+```java
+/**
+ * 在数组末尾添加元素
+ */
+public boolean add(E e) {
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    elementData[size++] = e;
+    return true;
+}
+```
+
+看到它首先调用了`ensureCapacityInternal()`方法.注意参数是**size+1**,这是个面试考点。
+
+```java
+private void ensureCapacityInternal(int minCapacity) {
+    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+}
+```
+
+这个方法里又嵌套调用了两个方法:**计算容量+确保容量**
+
+**计算容量**：如果elementData是空，则返回默认容量10和size+1的最大值，否则返回size+1
+
+```java
+private static int calculateCapacity(Object[] elementData, int minCapacity) {
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+        return Math.max(DEFAULT_CAPACITY, minCapacity);
+    }
+    return minCapacity;
+}
+
+```
+
+计算完容量后，进行**确保容量可用**：(modCount不用理它，它用来计算修改次数)
+
+```java
+private void ensureExplicitCapacity(int minCapacity) {
+    modCount++;
+
+    // overflow-conscious code
+    if (minCapacity - elementData.length > 0)
+        grow(minCapacity);
+}
+```
+
+增加容量：默认**1.5倍**扩容。
+
+```java
+private void grow(int minCapacity) {
+    // overflow-conscious code
+    int oldCapacity = elementData.length;
+    int newCapacity = oldCapacity + (oldCapacity >> 1);
+    if (newCapacity - minCapacity < 0)
+        newCapacity = minCapacity;
+    if (newCapacity - MAX_ARRAY_SIZE > 0)
+        newCapacity = hugeCapacity(minCapacity);
+    // minCapacity is usually close to size, so this is a win:
+    elementData = Arrays.copyOf(elementData, newCapacity);
+}
+```
+
+#### size +1的问题
+
+size+1代表的含义是：
+
+1. 如果集合添加元素成功后，集合中的实际元素个数。
+2. 为了确保扩容不会出现错误。
+
+假如不加一处理，如果默认size是0，则0+0>>1还是0。
+如果size是1，则1+1>>1还是1。有人问:不是默认容量大小是10吗?事实上，jdk1.8版本以后，ArrayList的扩容放在add()方法中。之前放在构造方法中。我用的是1.8版本，所以默认`ArrayList arrayList = new ArrayList();`后，size应该是0.所以,size+1对扩容来讲很必要.
+
+####**add(int index, E element)方法**
+
+```java
+public void add(int index, E element) {
+    rangeCheckForAdd(index);
+
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    System.arraycopy(elementData, index, elementData, index + 1,
+                     size - index);
+    elementData[index] = element;
+    size++;
+}
+```
+
+**`System.arrayCopy`**方法:
+
+```java
+public static void arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
+```
+
+- Object src : 原数组
+- int srcPos : 从元数据的起始位置开始
+- Object dest : 目标数组
+- int destPos : 目标数组的开始起始位置
+- int length : 要copy的数组的长度
+
+在**`remove(int index)`**方法中也使用了，**`System.arrayCopy`**，将index + 1开始的所有元素向前移动一格
+
+### Vector
+
+#### 1. 同步
+
+它的实现与 ArrayList 类似，但是使用了 **synchronized** 进行同步。
+
+```java
+public synchronized boolean add(E e) {
+    modCount++;
+    ensureCapacityHelper(elementCount + 1);
+    elementData[elementCount++] = e;
+    return true;
+}
+
+public synchronized E get(int index) {
+    if (index >= elementCount)
+        throw new ArrayIndexOutOfBoundsException(index);
+
+    return elementData(index);
+}
+```
+
+#### 2. 与ArrayList的比较
+
+**`Collections.synchronizedList(List<T> list)`**方法ArrayList转换成线程安全的，但这种转换方式依然是通过synchronized修饰方法实现的，很显然这不是一种高效的方式
+
+- Vector 是同步的，因此开销就比 ArrayList 要大，访问速度更慢。最好使用 ArrayList 而不是 Vector，因为同步操作完全可以由程序员自己来控制；
+- Vector 每次扩容请求其大小的 **2 倍空间**，而 ArrayList 是 **1.5 倍**。
+
+#### 替代方案
+
+可以使用 `Collections.synchronizedList();` 得到一个线程安全的 ArrayList
+
+```java
+List<String> list = new ArrayList<>();
+List<String> synList = Collections.synchronizedList(list);
+```
+
+也可以使用 concurrent 并发包下的 CopyOnWriteArrayList 类。
+
+```java
+List<String> list = new CopyOnWriteArrayList<>();
+```
+
+### CopyOnWriteArrayList
+
+#### 读写分离(ReentrantLock实现写锁)
+
+写操作在一个**复制 `Arrays.copyOf ` **的数组上进行，读操作还是在**原始数组**中进行，读写分离，互不影响。
+
+写操作需要加锁，防止并发写入时导致写入数据丢失。
+
+写操作结束之后需要把原始数组指向新的复制数组。
+
+```java
+public boolean add(E e) {
+    final ReentrantLock lock = this.lock;
+    lock.lock();
+    try {
+        Object[] elements = getArray();
+        int len = elements.length;
+        Object[] newElements = Arrays.copyOf(elements, len + 1);
+        newElements[len] = e;
+        setArray(newElements);
+        return true;
+    } finally {
+        lock.unlock();
+    }
+}
+
+final void setArray(Object[] a) {
+    array = a;
+}
+```
+
+```java
+@SuppressWarnings("unchecked")
+private E get(Object[] a, int index) {
+    return (E) a[index];
+}
+```
+
+#### 适用场景
+
+CopyOnWriteArrayList 在写操作的同时允许读操作，大大提高了**读操作**的性能，因此很适合**读多写少**的应用场景。
+
+但是 CopyOnWriteArrayList 有其缺陷：
+
+- 内存占用：在写操作时需要复制一个新的数组，使得内存占用为原来的两倍左右；
+- 数据不一致：读操作不能读取实时性的数据，因为部分写操作的数据还未同步到读数组中。
+
+所以 CopyOnWriteArrayList **不适合内存敏感以及对实时性要求很高的场景**。
+
+### LinkedList
+
+#### 概览
+
+```java
+public class LinkedList<E>
+    extends AbstractSequentialList<E>
+    implements List<E>, Deque<E>, Cloneable, java.io.Serializable{
+}
+```
+
+基于双向链表实现，使用 Node 存储链表节点信息。
+
+```java
+private static class Node<E> {
+    E item;
+    Node<E> next;
+    Node<E> prev;
+}
+```
+
+每个链表存储了 first 和 last 指针：
+
+```java
+transient Node<E> first;
+transient Node<E> last;
+```
+
+![img](https://cyc2018.github.io/CS-Notes/pics/09184175-9bf2-40ff-8a68-3b467c77216a.png)
+
+```java
+/**
+ * 将集合添加到链尾
+ */
+public boolean addAll(Collection<? extends E> c) {
+    return addAll(size, c);
+}
+public boolean addAll(int index, Collection<? extends E> c) {
+    checkPositionIndex(index);
+
+    // 拿到目标集合数组
+    Object[] a = c.toArray();
+    //新增元素的数量
+    int numNew = a.length;
+    //如果新增元素数量为0，则不增加，并返回false
+    if (numNew == 0)
+        return false;
+
+    //定义index节点的前置节点，后置节点
+    Node<E> pred, succ;
+    // 判断是否是链表尾部，如果是：在链表尾部追加数据
+    //尾部的后置节点一定是null，前置节点是队尾
+    if (index == size) {
+        succ = null;
+        pred = last;
+    } else {
+        // 如果不在链表末端(而在中间部位)
+        // 取出index节点，并作为后继节点
+        succ = node(index);
+        // index节点的前节点 作为前驱节点
+        pred = succ.prev;
+    }
+    // 链表批量增加，是靠for循环遍历原数组，依次执行插入节点操作
+    for (Object o : a) {
+        @SuppressWarnings("unchecked") 
+        // 类型转换
+        E e = (E) o;
+        // 前置节点为pred，后置节点为null，当前节点值为e的节点newNode
+        Node<E> newNode = new Node<>(pred, e, null);
+        // 如果前置节点为空， 则newNode为头节点，否则为pred的next节点
+        if (pred == null)
+            first = newNode;
+        else
+            pred.next = newNode;
+        pred = newNode;
+    }
+    // 循环结束后，如果后置节点是null，说明此时是在队尾追加的
+    if (succ == null) {
+        // 设置尾节点
+        last = pred;
+    } else {
+    //否则是在队中插入的节点 ，更新前置节点 后置节点
+        pred.next = succ;
+        succ.prev = pred;
+    }
+    // 修改数量size
+    size += numNew;
+    //修改modCount
+    modCount++;
+    return true;
+}
+/**
+  * 取出index节点
+  */ 
+Node<E> node(int index) {
+    // assert isElementIndex(index);
+
+    // 如果index 小于 size/2,则从头部开始找
+    if (index < (size >> 1)) {
+        // 把头节点赋值给x
+        Node<E> x = first;
+        for (int i = 0; i < index; i++)
+            // x=x的下一个节点
+            x = x.next;
+        return x;
+    } else {
+        // 如果index 大与等于 size/2，则从后面开始找
+        Node<E> x = last;
+        for (int i = size - 1; i > index; i--)
+            x = x.prev;
+        return x;
+    }
+}
+
+// 检测index位置是否合法
+private void checkPositionIndex(int index) {
+    if (!isPositionIndex(index))
+        throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+}
+// 检测index位置是否合法
+private boolean isPositionIndex(int index) {
+    return index >= 0 && index <= size;
+}    
+```
+
+注意`node(index)`方法:寻找处于index的节点，有一个小优化，**结点在前半段则从头开始遍历，在后半段则从尾开始遍历**，这样就保证了只需要遍历最多一半结点就可以找到指定索引的结点。
+
+#### addFirst(E e)方法
+
+```java
+public void addFirst(E e) {
+    linkFirst(e);
+}
+//将e链接成列表的第一个元素
+private void linkFirst(E e) {
+
+    final Node<E> f = first;
+    // 前驱为空，值为e，后继为f
+    final Node<E> newNode = new Node<>(null, e, f);
+    first = newNode;
+    //若f为空，则表明列表中还没有元素，last也应该指向newNode
+    if (f == null)
+        last = newNode;
+    else
+    //否则，前first的前驱指向newNode
+        f.prev = newNode;
+    size++;
+    modCount++;
+}
+```
+
+#### add(int index, E element)方法
+
+```java
+public void add(int index, E element) {
+    checkPositionIndex(index);
+    if (index == size)
+        linkLast(element);
+    else
+        linkBefore(element, node(index));
+}
+/**
+ * 在succ节点前增加元素e(succ不能为空)
+ */
+void linkBefore(E e, Node<E> succ) {
+    // assert succ != null;
+    // 拿到succ的前驱
+    final Node<E> pred = succ.prev;
+    // 新new节点：前驱为pred，值为e，后继为succ
+    final Node<E> newNode = new Node<>(pred, e, succ);
+    // 将succ的前驱指向当前节点
+    succ.prev = newNode;
+    // pred为空，说明此时succ为首节点
+    if (pred == null)
+        // 指向当前节点
+        first = newNode;
+    else
+        // 否则，将succ之前的前驱的后继指向当前节点
+        pred.next = newNode;
+    size++;
+    modCount++;
+}
+```
+
+#### 与ArrayList的比较
+
+- 优点：
+
+  1. 不需要扩容和预留空间,空间效率高
+  2. 增删效率高
+
+- 缺点：
+
+  1. 随机访问时间效率低
+  2. 改查效率低
+
+### HashMap
+
+```java
+public class HashMap<K,V> extends AbstractMap<K,V>
+implements Map<K,V>, Cloneable, Serializable {
+	/**
+     * The default initial capacity - MUST be a power of two.
+     */
+    static final int DEFAULT_INITIAL_CAPACITY = 1 << 4; // aka 16，默认容量
+    static final int MAXIMUM_CAPACITY = 1 << 30;	//最大容量 2^30
+    static final float DEFAULT_LOAD_FACTOR = 0.75f;//负载因子=size/capacity
+    static final int TREEIFY_THRESHOLD = 8;	//链表->红黑树阈值
+    static final int UNTREEIFY_THRESHOLD = 6;	//红黑树->链表阈值
+    static final int MIN_TREEIFY_CAPACITY = 64;
+    
+}
+```
+
+| 参数       | 含义                                                         |
+| ---------- | ------------------------------------------------------------ |
+| capacity   | table 的容量大小，默认为 16。需要注意的是 capacity 必须保证为 2 的 n 次方。 |
+| size       | 键值对数量。                                                 |
+| threshold  | size 的临界值，当 size 大于等于 threshold 就必须进行扩容操作。 |
+| loadFactor | 负载因子，table 能够使用的比例，threshold = capacity * loadFactor。 |
+
+内部包含了一个**` 静态内部类Node[] 类型`**的数组 table。**在1.7 中是一个Entry<K, V>[] table**
+
+```java
+transient Node<K, V>[] table;
+```
+
+该数组长度始终**为2的n次幂**，通过以下函数实现
+
+**用位运算找到大于或等于 cap 的最小的（！！！）2的整数次幂的数。比如10，则返回16**
+
+```java
+static final int tableSizeFor(int cap) {
+    int n = cap - 1;// 如果不做该操作， 则如传入的 cap 是 2 的整数幂， 则返回值是预想的 2 倍
+    n |= n >>> 1;
+    n |= n >>> 2;
+    n |= n >>> 4;
+    n |= n >>> 8;
+    n |= n >>> 16;
+    return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
+}
+```
+
+因为int最大就`2^32`所以移动1、2、4、8、16位并取位或,会将**最高位的1后面的位全变为1。**
+
+其原理是将传入参数 `(cap)` 的**低二进制全部变为1**，最后加1即可获得对应的大于 `cap` 的 2 的次幂作为数组长度。
+
+#### 为什么要使用2的次幂作为数组的容量呢？
+
+`HashMap` 的 `hash` 函数及数组下标的计算， 键(key)所计算出来的哈希码有可能是大于数组的容量的，那怎么办？
+
+可以通过简单的求余运算来获得，但此方法效率太低。**MOD运算是非常消耗CPU时间的**
+
+HashMap中通过以下的方法**保证 `hash` 的值计算后都小于数组的容量**。
+
+```java
+(n - 1) & hash	//容量是n=table.length() , 等价于对其取余
+```
+
+由于n是2的次幂，因此，**n-1类似于一个低位掩码**。通过**与**操作，高位的hash值全部归零，保证低位才有效 从而保证获得的值都小于n
+
+同时，在下一次 `resize()` 操作时， 重新计算每个 `Node` 的数组下标将会因此变得很简单，具体的后文讲解。以默认的初始值16为例
+
+```java
+   01010011 00100101 01010100 00100101
+&   00000000 00000000 00000000 00001111
+----------------------------------------
+    00000000 00000000 00000000 00000101    //高位全部归零，只保留末四位
+    // 保证了计算出的值小于数组的长度 n
+```
+
+但是，使用了该功能之后，由于只取了低位，<u>因此 hash 碰撞会也会相应的变得很严重</u>。这时候就需要使用     **「扰动函数」**
+
+```java
+static final int hash(Object key) {
+    int h;
+    return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+}
+```
+
+该函数通过将**哈希码的高16位的右移后**与原哈希码进行**异或**而得到，以上面的例子为例
+
+![image-20190311142856988](https://ws3.sinaimg.cn/large/006tKfTcgy1g0yu9kcuhlj30fm06sju7.jpg)
+
+此方法保证了**高16位不变， 低16位根据异或后的结果改变**。计算后的数组下标将会**从原先的5变为0**。
+
+**流程是**：先扰动函数得到**扰动后hash**，再(n - 1) & hash，得到最后的数组下标
+
+#### 存储结构
+
+Node 存储着键值对。它包含了**四个字段**，从 next 字段我们可以看出 Node 是一个链表。即数组中的每个位置被当成一个桶，一个桶存放一个链表。HashMap 使用**拉链法**和**红黑树**来解决冲突，同一个链表中存放哈希值相同的 Node。
+
+**HashMap的链表插入是头插法**
+
+![image-20190311143430799](https://ws4.sinaimg.cn/large/006tKfTcgy1g0yufcu6t5j311q0hmqak.jpg)
+
+```java
+static class Node<K,V> implements Map.Entry<K,V> {
+    final int hash;
+    final K key;
+    V value;
+    Node<K,V> next;
+
+    Node(int hash, K key, V value, Node<K,V> next) {
+        this.hash = hash;
+        this.key = key;
+        this.value = value;
+        this.next = next;
+    }
+
+    public final K getKey()        { return key; }
+    public final V getValue()      { return value; }
+    public final String toString() { return key + "=" + value; }
+
+    public final int hashCode() {
+        return Objects.hashCode(key) ^ Objects.hashCode(value);
+    }
+
+    public final V setValue(V newValue) {
+        V oldValue = value;
+        value = newValue;
+        return oldValue;
+    }
+
+    public final boolean equals(Object o) {
+        if (o == this)
+            return true;
+        if (o instanceof Map.Entry) {
+            Map.Entry<?,?> e = (Map.Entry<?,?>)o;
+            if (Objects.equals(key, e.getKey()) &&
+                Objects.equals(value, e.getValue()))
+                return true;
+        }
+        return false;
+    }
+}
+```
+
+#### HashMap初始化
+
+```java
+ public HashMap();
+ public HashMap(int initialCapacity);
+ public HashMap(Map<? extends K, ? extends V> m);
+public HashMap(int initialCapacity, float loadFactor) {
+    if (initialCapacity < 0)
+        throw new IllegalArgumentException("Illegal initial capacity: " +
+                                           initialCapacity);
+    if (initialCapacity > MAXIMUM_CAPACITY)
+        initialCapacity = MAXIMUM_CAPACITY;
+    if (loadFactor <= 0 || Float.isNaN(loadFactor))
+        throw new IllegalArgumentException("Illegal load factor: " +
+                                           loadFactor);
+    this.loadFactor = loadFactor;
+    this.threshold = tableSizeFor(initialCapacity);
+}
+//通过该函数进行了容量和负载因子的初始化，如果是调用的其他的构造函数， 则相应的负载因子和容量会使用默认值（默认负载因子=0.75， 默认容量=16）。在此时， 还没有进行存储容器 table 的初始化， 该初始化要延迟到第一次使用时进行。
+```
+
+HashMap的所有构造函数**，最多只是设置了loadfactor和threshold的值，并未分配存储空间，懒加载！！！初始化扩容，如果指定了初始容量，会放在threshold中，并且在put时调用resize并且加载threshold值作为容量**
+
+`new HashMap();`完成后，**如果没有`put`操作，是不会分配存储空间的**。
+
+#### HashMap动态扩容（resize()方法）
+
+作为数组， 其在初始化时就需要指定长度。在实际使用过程中， 我们存储的数量可能会大于该长度，因此 HashMap 中定义了一个阈值参数(threshold)， 在存储的容量达到指定的阈值时， 需要进行扩容。
+
+> 我个人认为初始化也是动态扩容的一种， 只不过其扩容是容量从 0 扩展到构造函数中的数值（默认16）。 而且不需要进行元素的重hash.
+
+**扩容发生条件（再哈希）**
+
+size > threshold 时即动态扩容，也称为再哈希
+
+```java
+threshold = loadFactor * capacity;
+```
+
+比如 HashMap 中默认的 loadFactor=0.75, capacity=16, 则
+
+```java
+threshold = loadFactor * capacity = 0.75 * 16 = 12
+```
+
+总结起来，一共有三种**扩容方式（都是在第一次put时才进行扩容，分配存储空间！！！！！！！）**：
+
+1. 使用**默认构造方法**初始化HashMap。从前文可以知道HashMap在一开始初始化的时候会返回一个空的table，并且thershold为0。因此第一次扩容的容量为默认值`DEFAULT_INITIAL_CAPACITY`也就是16。同时`threshold = DEFAULT_INITIAL_CAPACITY * DEFAULT_LOAD_FACTOR = 12`。
+2. **指定初始容量**的构造方法初始化`HashMap`。那么从下面源码可以看到初始容量会等于`threshold`，接着`threshold = 当前的容量（threshold） * DEFAULT_LOAD_FACTOR`。
+3. HashMap**不是第一次扩容**。如果`HashMap`已经扩容过的话，那么每次table的容量以及`threshold`量为**原有的两倍。**
+
+#### 再谈容量为2的整数次幂和数组索引计算
+
+前面说过了数组的容量为 2 的整次幂， 同时， 数组的下标通过下面的代码进行计算
+
+```java
+index = (table.length - 1) & hash;
+```
+
+由于数组扩容之后， 容量是现在的 2 倍， 扩容之后 n-1 的有效位会比原来多一位， 而多的这一位与原容量二进制在同一个位置。 示例（**注意：这里的A.hashcode是没扰动过的，只是为了说明原理**）
+
+![image-20190311144957615](https://ws4.sinaimg.cn/large/006tKfTcgy1g0yuvfmha8j31280gik5e.jpg)
+
+#### 扩容步骤
+
+- 先判断是初始化还是扩容， 两者在计算newCap和newThr时会不一样
+- 计算扩容后的容量，临界值。
+- 将hashMap的临界值修改为扩容后的临界值
+- 根据扩容后的容量新建数组，然后将hashMap的table的引用指向新数组。
+- 将旧数组的元素复制到table中。在该过程中， 涉及到几种情况， 需要分开进行处理（只存有一个元素， 一般链表， 红黑树）
+
+#### 与 HashTable 的比较
+- HashTable 使用 synchronized 来进行同步。
+- HashMap 可以插入键为 **null** 的 Node（**但无法确认其hashCode，默认插入第0个桶**）。
+- HashMap 的迭代器是 fail-fast 迭代器。
+- HashMap **不能保证随着时间的推移 Map 中的元素次序是不变的**。
+
+#### 注意事项
+
+虽然 `HashMap` 设计的非常优秀， 但是应该尽可能少的避免 `resize()`, 该过程会很耗费时间。
+
+同时， 由于 `hashmap` **不能自动的缩小容量** 因此，如果你的 `hashmap` 容量很大，但执行了很多 `remove`操作时，**容量并不会减少**。如果你觉得需要减少容量，请重新创建一个 hashmap。
+
+> 1. JDK1.7是基于数组+单链表实现（为什么不用双链表）
+
+首先，用链表是为了解决hash冲突。
+
+单链表能实现为什么要用双链表呢?(双链表需要更大的存储空间)
+
+> 2. 为什么要用红黑树，而不用平衡二叉树？
+
+插入效率比平衡二叉树高，查询效率比普通二叉树高。所以选择性能相对折中的红黑树。
+
+> 3. 既然红黑树那么好，为啥hashmap不直接采用红黑树，而是当大于8个的时候才转换红黑树？
+
+因为红黑树需要进行左旋，右旋操作， 而单链表不需要。
+
+至于为什么选数字8，是大佬折中衡量的结果-.-，就像loadFactor默认值0.75一样。
+
+
+
+### ConcurrentHashMap（见Thinking in Java 笔记）
+
+
+
+### LinkedHashMap
+
+内部维护了一个双向链表，用来维护插入顺序或者 LRU 顺序。
+
+```java
+/**
+ * The head (eldest) of the doubly linked list.
+ */
+transient LinkedHashMap.Entry<K,V> head;
+
+/**
+ * The tail (youngest) of the doubly linked list.
+ */
+transient LinkedHashMap.Entry<K,V> tail;
+```
+
+accessOrder 决定了顺序，**默认为 false，此时维护的是插入顺序。**
+
+```java
+final boolean accessOrder;
+```
+
+LinkedHashMap 最重要的是以下用于维护顺序的函数，它们会**在 put、get 等方法中调用**。
+
+```java
+void afterNodeAccess(Node<K,V> p) { }
+void afterNodeInsertion(boolean evict) { }
+```
+
+#### afterNodeAccess()（get方法调用）
+
+当一个节点被访问时，如果 accessOrder 为 true，则会将该节点移到链表尾部。也就是说指定为 LRU 顺序之后，**在每次访问一个节点时，会将这个节点移到链表尾部，保证链表尾部是最近访问的节点**，**那么链表首部就是最近最久未使用的节点。**
+
+```java
+void afterNodeAccess(Node<K,V> e) { // move node to last
+    LinkedHashMap.Entry<K,V> last;
+    if (accessOrder && (last = tail) != e) {
+        LinkedHashMap.Entry<K,V> p =
+            (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
+        p.after = null;
+        if (b == null)
+            head = a;
+        else
+            b.after = a;
+        if (a != null)
+            a.before = b;
+        else
+            last = b;
+        if (last == null)
+            head = p;
+        else {
+            p.before = last;
+            last.after = p;
+        }
+        tail = p;
+        ++modCount;
+    }
+}
+```
+
+#### afterNodeInsertion()（put方法调用）
+
+**在 put 等操作之后执行**，当 **removeEldestEntry() 方法返回 true 时会移除最晚的节点，也就是链表首部节点 first。**
+
+**evict 只有在构建 Map 的时候才为 false，在这里为 true。**
+
+```java
+void afterNodeInsertion(boolean evict) { // possibly remove eldest
+    LinkedHashMap.Entry<K,V> first;
+    if (evict && (first = head) != null && removeEldestEntry(first)) {
+        K key = first.key;
+        removeNode(hash(key), key, null, false, true);
+    }
+}
+```
+
+**removeEldestEntry() 默认为 false**，如果需要让它为 true，需要继承 **LinkedHashMap 并且覆盖这个方法的实现，这在实现 LRU 的缓存中特别有用**，通过移除最近最久未使用的节点，从而保证缓存空间足够，并且缓存的数据都是热点数据。
+
+#### LRU缓存
+
+以下是使用 LinkedHashMap 实现的一个 LRU 缓存：
+
+- 设定最大缓存空间 MAX_ENTRIES 为 3；
+- 使用 LinkedHashMap 的构造函数将 accessOrder 设置为 true，开启 LRU 顺序；
+- 覆盖 **removeEldestEntry**() 方法实现，**在节点多于 MAX_ENTRIES 就会将最近最久未使用的数据移除**
+
+```java
+class LRUCache<K, V> extends LinkedHashMap<K, V> {
+    private static final int MAX_ENTRIES = 3;
+
+    protected boolean removeEldestEntry(Map.Entry eldest) {
+        return size() > MAX_ENTRIES;
+    }
+
+    LRUCache() {
+        super(MAX_ENTRIES, 0.75f, true);
+    }
+}
+```
+
+```java
+public static void main(String[] args) {
+    LRUCache<Integer, String> cache = new LRUCache<>();
+    cache.put(1, "a");
+    cache.put(2, "b");
+    cache.put(3, "c");
+    cache.get(1);
+    cache.put(4, "d");
+    System.out.println(cache.keySet());
+}
+```
+
+```html
+[3, 1, 4]
+```
+
+### WeakHashMap
+
+WeakHashMap 的 Entry 继承自 WeakReference，被 WeakReference 关联的对象在下一次垃圾回收时会被回收。
+
+WeakHashMap 主要用来**实现缓存**，通过使用 WeakHashMap 来**引用缓存对象**，由 JVM 对这部分缓存进行回收。
+
+```java
+private static class Entry<K,V> extends WeakReference<Object> implements Map.Entry<K,V>
+```
+
+#### ConcurrentHash
+
+**Tomcat 中的 ConcurrentCache** 使用了 WeakHashMap 来实现缓存功能。
+
+ConcurrentCache 采取的是**分代缓存**：
+
+- 经常使用的对象放入 eden 中，eden 使用 ConcurrentHashMap 实现，不用担心会被回收（伊甸园）；
+- 不常用的对象放入 longterm，longterm 使用 WeakHashMap 实现，这些老对象会被垃圾收集器回收。
+- 当调用 get() 方法时，会先从 eden 区获取，如果没有找到的话再到 longterm 获取，当从 longterm 获取到就把对象放入 eden 中，从而保证经常被访问的节点不容易被回收。
+- 当调用 put() 方法时，如果 eden 的大小超过了 size，那么就将 eden 中的所有对象都放入 longterm 中，利用虚拟机回收掉一部分不经常使用的对象。
+
+```java
+public final class ConcurrentCache<K, V> {
+
+    private final int size;
+
+    private final Map<K, V> eden;
+
+    private final Map<K, V> longterm;
+
+    public ConcurrentCache(int size) {
+        this.size = size;
+        this.eden = new ConcurrentHashMap<>(size);
+        this.longterm = new WeakHashMap<>(size);
+    }
+
+    public V get(K k) {
+        V v = this.eden.get(k);
+        if (v == null) {
+            v = this.longterm.get(k);
+            if (v != null)
+                this.eden.put(k, v);
+        }
+        return v;
+    }
+
+    public void put(K k, V v) {
+        if (this.eden.size() >= size) {
+            this.longterm.putAll(this.eden);
+            this.eden.clear();
+        }
+        this.eden.put(k, v);
+    }
+}
+```
