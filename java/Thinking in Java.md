@@ -61,7 +61,7 @@ C语言为追求效率，必须显示指定对象存储空间、类型，对象�
 
 Java在运行时才知道，且在运行时在**堆（heap**）内为对象动态分配内存，通过**垃圾回收器**自动清理不使用的对象（得益于单根继承的特性）
 
-**Java对象存储在堆，但对象引用和基本数据类型存储在堆栈**
+**Java对象存储在堆，但基本数据类型是放在栈中还是放在堆中，这取决于基本类型在何处声明**
 
 ### 异常处理不是面向对象独有特性
 
@@ -2234,15 +2234,108 @@ CAS操作失败后会进行一定的尝试，而非进行耗时的挂起唤醒�
 
 #### synchronized 关键字（也直接称为同步，JVM提供支持，JVM负责加锁和释放）
 
-**不属于方法特征签名的一部分**
+**不属于方法特征签名的一部分，天生就具有重入性**
 
 任务访问synchronized关键字代码片段或方法的时候，会检查当前对象的锁是否可获得，如果可以获得锁，那么才会访问此段代码，在执行结束后释放对象锁。
 
 当一个任务持有某个对象锁的时候，其他**访问该对象的任何synchronized代码的线程都会被阻塞**，访问**非synchronized方法不受影响**
 
-synchronized代码块在实际上在**字节码**多了**monitorenter和monitorexit**两条指令，类似**操作系统PV操作**
+##### 原理
 
-**synchronized的正确使用**
+**通过对象内部的一个叫做监视器锁（monitor）来实现的**。但是监视器锁本质又是依赖于**底层的操作系统的Mutex Lock来实现的**。
+
+**1.Synchronized是如何实现对代码块进行同步** 
+
+moniterenter和moniterexit字节码指令
+
+**2.Synchronized是如何实现对方法进行同步**
+
+常量池中多了**ACC_SYNCHRONIZED**标示符，JVM就是根据该标示符来实现方法的同步的（其实和代码块同步是一个原理，只不过这里使用隐式的一个标志实现，而不是字节码指令）
+
+**wait/notify等方法也依赖于monitor对象**，这就是为什么只有在同步的块或者方法中才能调用wait/notify等方法，否则会抛出java.lang.IllegalMonitorStateException的异常的原因。
+
+#####Synchronized为什么低效？
+
+操作系统实现线程之间的切换这就需要**从用户态转换到核心态**，这个成本非常高，状态之间的转换需要相对比较长的时间，**这就是为什么Synchronized效率低的原因**。
+
+##### Synchronized的优化
+
+JDK1.6以后，为了减少获得锁和释放锁所带来的性能消耗，提高性能，引入了“轻量级锁”和“偏向锁”。
+
+**获取锁的形式没变，但加快了获取锁和释放锁的速度 1.CAS 2.对象头**
+
+##### Java对象头
+
+每一个Java类，在**被JVM加载**的时候，JVM会给这个类创建一个`instanceKlass`，保存在**方法区**，**用来在JVM层表示该Java类**。当我们在Java代码中，使用**new创建**一个对象的时候，**JVM会创建一个`instanceOopDesc`对象**，这个对象中包含了**对象头以及实例数据**。
+
+对象头信息是**与对象自身定义的数据无关的额外存储成本**，考虑到虚拟机的空间效率，Mark Word被设计成**一个非固定的数据结构**以便在极小的空间内存储尽量多的信息，它会根据对象的状态复用自己的存储空间。
+
+**下图为32位JVM的Mark Word**
+
+![ObjectHead](http://www.hollischuang.com/wp-content/uploads/2018/01/ObjectHead-1024x329.png)
+
+同步块的核心是获取了对象的monitor（即对象锁），**对象锁就记录在对象头中**
+
+Java对象头里的**Mark Word**里默认的存放的对象的**Hashcode,分代年龄和锁标记位**。
+
+Java SE 1.6中，锁一共有4种状态，级别从低到高依次是：
+
+- **无锁状态**
+- **偏向锁状态**
+- **轻量级锁状态**
+- **重量级锁状态**
+
+**锁随着竞争情况升级，但不会降级**（目的是为了提高获取和释放锁效率，避免无用CAS自旋）
+
+**对象的MarkWord变化如下图**
+
+![image-20190314202824439](/Users/allentian/Library/Application Support/typora-user-images/image-20190314202824439.png)
+
+##### 偏向锁
+
+HotSpot的作者经过研究发现，大多数情况下，**锁不仅不存在多线程竞争，而且总是由同一线程多次获得**，为了让线程获得锁的代价更低而引入了偏向锁。
+
+> **偏向锁的获取**
+
+当一个线程访问同步块并获取锁时，会在**对象头**和**栈帧中的锁记录**里**存储锁偏向的线程ID**，以后该线程在进入和退出同步块时**不需要进行CAS操作来加锁和解锁**，只需简单地测试一下对象头的Mark Word里是否存储着指向当前线程的偏向锁。如果测试成功，表示线程已经获得了锁。**如果测试失败，则需要再测试一下Mark Word中偏向锁的标识是否设置成1（表示当前是偏向锁）**：如果没有设置，则使用CAS竞争锁；如果设置了，则尝试使用CAS将对象头的偏向锁指向当前线程
+
+> **偏向锁的释放**
+
+偏向锁使用了一种**等到竞争出现才释放锁**的机制，所以当其他线程尝试竞争偏向锁时，持有偏向锁的线程才会释放锁。
+
+![image-20190314203203858](/Users/allentian/Library/Application Support/typora-user-images/image-20190314203203858.png)
+
+偏向锁的撤销，需要等待**全局安全点**（在这个时间点上没有正在执行的字节码）
+
+栈中的锁记录和对象头的Mark Word
+
+**要么**重新偏向于其他线程，
+
+**要么**恢复到无锁
+
+**要么**标记对象不适合作为偏向锁，最后唤醒暂停的线程。
+
+> **关闭偏向锁**
+
+偏向锁在Java 6和Java 7里是默认启用的，但是它在应用程序启动几秒钟之后才激活，如有必要可以使用JVM参数来关闭延迟：**-XX:BiasedLockingStartupDelay=0**。如果你确定应用程序里所有的锁通常情况下处于竞争状态，可以通过JVM参数关闭偏向锁：**-XX:-UseBiasedLocking=false**，那么程序**默认会进入轻量级锁状态**
+
+##### 轻量级锁
+
+> **加锁**
+
+线程在执行同步块之前，JVM会先在当前线程的**栈桢**中**创建用于存储锁记录的空间**，并将对象头中的**Mark Word复制到锁记录中**，官方称为**Displaced Mark Word**。然后线程尝试使用**CAS将对象头中的Mark Word替换为指向锁记录的指针**。如果成功，当前线程获得锁，如果失败，表示其他线程竞争锁，当前线程便尝试使用**自旋**来获取锁。
+
+> **解锁**
+
+轻量级解锁时，会使用**原子的CAS操作**将**Displaced Mark Word替换回到对象头**，如果成功，则表示没有竞争发生。**如果失败，表示当前锁存在竞争，锁就会膨胀成重量级锁**。
+
+因为自旋会消耗CPU，为了避免无用的自旋（比如获得锁的线程被阻塞住了），**一旦锁升级成重量级锁，就不会再恢复到轻量级锁状态**。
+
+##### 各种锁的比较
+
+![image-20190314204048203](/Users/allentian/Library/Application Support/typora-user-images/image-20190314204048203.png)
+
+#####synchronized的正确使用
 
 - 所有共享的数据资源都设置为**private**，只能通过方法访问
 - **所有访问临界共享资源的方法都必须被同步**（synchronized）
@@ -4067,9 +4160,9 @@ LinkedTransferQueue是一个由链表数据结构构成的**无界阻塞队列**
 
 LinkedBlockingDeque是基于链表数据结构的**有界阻塞双端队列**，如果在创建对象时为指定大小时，其默认大小为Integer.MAX_VALUE。与LinkedBlockingQueue相比，主要的不同点在于，LinkedBlockingDeque具有双端队列的特性。
 
-##### 7.DelayQueue
+##### 7.DelayQueue（配合ScheduledThreadPoolExecutor）
 
-DelayQueue是一个存放实现**Delayed接口**的数据的**无界阻塞队列**，只有当数据对象的**延时时间达到时**才能插入到队列进行存储。如果当前所有的数据都还没有达到创建时所指定的延时期，则队列没有队头，并且线程通过poll等方法获取数据元素则返回null。所谓数据延时期满时，则是通过Delayed接口的`getDelay(TimeUnit.NANOSECONDS)`来进行判定，如果该方法返回的是小于等于0则说明该数据元素的延时期已满。
+DelayQueue是一个存放实现**Delayed接口**的数据的**无界阻塞队列**，只有当数据对象的**延时时间达到时**才能插入到队列进行存储。如果当前所有的数据都还没有达到创建时所指定的延时期，**则队列没有队头**，并且线程通过poll等方法获取数据元素则返回null。所谓数据延时期满时，则是通过Delayed接口的`getDelay(TimeUnit.NANOSECONDS)`来进行判定，如果该方法返回的是小于等于0则说明该数据元素的延时期已满。
 
 ### 线程池（Executor体系）
 
@@ -4169,9 +4262,91 @@ execute方法执行逻辑有这样几种情况：
 
 并且，阻塞队列**最好是使用有界队列**，如果采用无界队列的话，一旦任务积压在阻塞队列中的话就会占用过多的内存资源，甚至会使得系统崩溃。
 
-####ScheduledThreadPoolExecutor（TBD）
+####ScheduledThreadPoolExecutor（延时执行、周期执行多个任务，比Timer强大）
 
+可以用来**在给定延时后执行异步任务或者周期性执行任务**，相对于任务调度的**Timer来说**，其功能更加强大，Timer只能使用一个后台线程执行任务，而ScheduledThreadPoolExecutor则可以通过**构造函数来指定后台线程的个数**。
 
+1. ScheduledThreadPoolExecutor继承了`ThreadPoolExecutor`，也就是说ScheduledThreadPoolExecutor拥有execute()和submit()**提交异步任务的基础功能**，但是，ScheduledThreadPoolExecutor类**实现了`ScheduledExecutorService`，**该接口定义了ScheduledThreadPoolExecutor能够**延时执行任务和周期执行任务**的功能；
+2. ScheduledThreadPoolExecutor也两个重要的内部类：**DelayedWorkQueue**和**ScheduledFutureTask**。可以看出DelayedWorkQueue实现了BlockingQueue接口，也就是一个阻塞队列，ScheduledFutureTask则是继承了**FutureTask类**，也表示该类用于**返回异步任务的结果**。这两个关键类，下面会具体详细来看。
+
+##### ScheduledFutureTask
+
+ScheduledThreadPoolExecutor实现了`ScheduledExecutorService`接口，该接口定义了**可延时执行异步任务和可周期执行异步任务的特有功能**，相应的方法分别为：
+
+```java
+//达到给定的延时时间后，执行任务。这里传入的是实现Runnable接口的任务，
+//因此通过ScheduledFuture.get()获取结果为null
+public ScheduledFuture<?> schedule(Runnable command,
+                                       long delay, TimeUnit unit);
+//达到给定的延时时间后，执行任务。这里传入的是实现Callable接口的任务，
+//因此，返回的是任务的最终计算结果
+ public <V> ScheduledFuture<V> schedule(Callable<V> callable,
+                                           long delay, TimeUnit unit);
+
+//是以上一个任务开始的时间计时，period时间过去后，
+//检测上一个任务是否执行完毕，如果上一个任务执行完毕，
+//则当前任务立即执行，如果上一个任务没有执行完毕，则需要等上一个任务执行完毕后立即执行
+public ScheduledFuture<?> scheduleAtFixedRate(Runnable command,
+                                                  long initialDelay,
+                                                  long period,
+                                                  TimeUnit unit);
+//当达到延时时间initialDelay后，任务开始执行。上一个任务执行结束后到下一次
+//任务执行，中间延时时间间隔为delay。以这种方式，周期性执行任务。
+public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command,
+                                                     long initialDelay,
+                                                     long delay,
+                                                     TimeUnit unit);
+```
+
+当调用`schedule,scheduleAtFixedRate和scheduleWithFixedDelay方法`时，实际上是将提交的任务转换成的**ScheduledFutureTask类**
+
+**`ScheduledFutureTask`**最主要的功能是根据当前任务**是否具有周期性**，对异步任务进行进一步封装。如果不是周期性任务（**调用schedule方法**）则直接通过`run()`执行，若是周期性任务，则需要在每一次执行完后，重设下一次执行的时间，然后将下一次任务继续放入到阻塞队列中。
+
+##### DelayedWorkQueue
+
+DelayedWorkQueue是一个**基于堆**的数据结构（**优先级队列**）。类似于**DelayQueue和PriorityQueue**。DelayedWorkQueue的工作就是按照执行时间的升序来排列，**执行时间距离当前时间越近的任务在队列的前面**。
+
+> 为什么要使用DelayedWorkQueue呢？
+
+**定时任务执行时需要取出最近要执行的任务**
+
+**DelayedWorkQueue是基于堆的数据结构，按照时间顺序将每个任务进行排序，将待执行时间越近的任务放在在队列的队头位置，以便于最先进行执行**。
+
+#### FutureTask（可获取结果的异步任务）
+
+FutureTask用来表示**可获取结果的异步任务**。FutureTask实现了Future接口，FutureTask提供了**启动和取消异步任务**，查询异步任务是否计算结束以及获取最终的异步任务的结果的一些常用的方法。通过`get()`方法来**获取异步任务的结果**，但是会**阻塞**当前线程直至异步任务执行结束。一旦任务执行结束，任务**不能重新启动或取消**，除非调用`runAndReset()`方法。
+
+**未启动**。FutureTask.run()方法还没有被执行之前，FutureTask处于未启动状态。当创建一个FutureTask，还没有执行FutureTask.run()方法之前，FutureTask处于未启动状态。
+
+**已启动**。FutureTask.run()方法被执行的过程中，FutureTask处于已启动状态。
+
+**已完成**。FutureTask.run()方法执行结束，或者调用FutureTask.cancel(...)方法取消任务，或者在执行任务期间抛出异常，这些情况都称之为FutureTask的已完成状态。
+
+![image-20190313095156212](/Users/allentian/Library/Application Support/typora-user-images/image-20190313095156212.png)
+
+由于FutureTask具有这三种状态，因此执行FutureTask的get方法和cancel方法，**当前处于不同的状态对应的结果也是大不相同**。这里对get方法和cancel方法做个总结：
+
+>  get方法
+
+当FutureTask处于**未启动或已启动**状态时，执行FutureTask.get()方法将导致调用**线程阻塞**。如果FutureTask处于**已完成状态**，调用FutureTask.get()方法将导致调用线程**立即返回结果或者抛出异常**
+
+> cancel方法
+
+当FutureTask处于**未启动状态**时，执行FutureTask.cancel()方法将此任务永远不会执行；
+
+当FutureTask处于**已启动状态**时，执行FutureTask.cancel(true)方法将以**中断线程**的方式来阻止任务继续进行，如果执行FutureTask.cancel(false)将不会对正在执行任务的线程有任何影响；
+
+当**FutureTask**处于**已完成状态**时，执行FutureTask.cancel(...)方法将返回false。
+
+对Future的get()方法和cancel()方法用下图进行总结
+
+![image-20190313095352150](/Users/allentian/Library/Application Support/typora-user-images/image-20190313095352150.png)
+
+##### Future基本使用
+
+FutureTask除了实现Future接口外，还实现了**Runnable接口**。因此，FutureTask可以交给Executor执行，也可以由调用的线程直接执行（FutureTask.run()）。另外，FutureTask的获取也可以通过ExecutorService.submit()方法返回一个FutureTask对象，然后在通过FutureTask.get()或者FutureTask.cancel方法。
+
+**应用场景：当一个线程需要等待另一个线程把某个任务执行完后它才能继续执行**，此时可以使用FutureTask。假设有多个线程执行若干任务，每个任务最多只能被执行一次。当多个线程试图执行同一个任务时，只允许一个线程执行任务，其他线程需要等待这个任务执行完后才能继续执行。
 
 ### 原子操作类
 
@@ -4346,7 +4521,253 @@ public class AtomicDemo {
 
 #### CountDownLatch（倒计时器）
 
+**应用场景**：有时候需要等待其他多个线程完成任务之后，主线程才能继续往下执行业务功能。使用join和线程间通信机制也能实现。但倒计时也很方便。
 
+CountDownLatch的方法不是很多，将它们一个个列举出来：
+
+1. await() throws InterruptedException：**调用该方法的线程等到构造方法传入的N减到0的时候，才能继续往下执行；**
+2. await(long timeout, TimeUnit unit)：与上面的await方法功能一致，只不过这里有了时间限制，调用该方法的线程等到指定的timeout时间后，不管N是否减至为0，都会继续往下执行；
+3. countDown()：使CountDownLatch初始值N减1；
+4. long getCount()：获取当前CountDownLatch维护的值；
+
+```java
+public class CountDownLatchDemo {
+private static CountDownLatch startSignal = new CountDownLatch(1);
+//用来表示裁判员需要维护的是6个运动员
+private static CountDownLatch endSignal = new CountDownLatch(6);
+
+public static void main(String[] args) throws InterruptedException {
+    ExecutorService executorService = Executors.newFixedThreadPool(6);
+    for (int i = 0; i < 6; i++) {
+        executorService.execute(() -> {
+            try {
+                System.out.println(Thread.currentThread().getName() + " 运动员等待裁判员响哨！！！");
+                startSignal.await();
+                System.out.println(Thread.currentThread().getName() + "正在全力冲刺");
+                endSignal.countDown();
+                System.out.println(Thread.currentThread().getName() + "  到达终点");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    System.out.println("裁判员发号施令啦！！！");
+    startSignal.countDown();
+    endSignal.await();
+    System.out.println("所有运动员到达终点，比赛结束！");
+    executorService.shutdown();
+}
+}
+输出结果：
+pool-1-thread-2 运动员等待裁判员响哨！！！
+pool-1-thread-3 运动员等待裁判员响哨！！！
+pool-1-thread-1 运动员等待裁判员响哨！！！
+pool-1-thread-4 运动员等待裁判员响哨！！！
+pool-1-thread-5 运动员等待裁判员响哨！！！
+pool-1-thread-6 运动员等待裁判员响哨！！！
+裁判员发号施令啦！！！
+pool-1-thread-2正在全力冲刺
+pool-1-thread-2  到达终点
+pool-1-thread-3正在全力冲刺
+pool-1-thread-3  到达终点
+pool-1-thread-1正在全力冲刺
+pool-1-thread-1  到达终点
+pool-1-thread-4正在全力冲刺
+pool-1-thread-4  到达终点
+pool-1-thread-5正在全力冲刺
+pool-1-thread-5  到达终点
+pool-1-thread-6正在全力冲刺
+pool-1-thread-6  到达终点
+所有运动员到达终点，比赛结束！
+```
+
+需要注意的是，当调用**CountDownLatch的countDown方法时，当前线程是不会被阻塞**，会继续往下执行，比如在该例中会继续输出`pool-1-thread-4 到达终点`。
 
 #### CyclicBarrier（循环栅栏）
+
+CyclicBarrier也是一种多线程并发控制的实用工具，和CountDownLatch一样具有等待计数的功能，但是相比于CountDownLatch功能更加强大。
+
+![image-20190313084416810](/Users/allentian/Library/Application Support/typora-user-images/image-20190313084416810.png)
+
+**相当于栅栏在「临界点」凑齐6个线程才会允许一波执行，并且栅栏接下来继续有效**
+
+。**CyclicBarrier在使用一次后，下面依然有效，可以继续当做计数器使用，这是与CountDownLatch的区别之一。**
+
+```java
+//等到所有的线程都到达指定的临界点
+await() throws InterruptedException, BrokenBarrierException 
+//与上面的await方法功能基本一致，只不过这里有超时限制，阻塞等待直至到达超时时间为止
+await(long timeout, TimeUnit unit) throws InterruptedException, 
+BrokenBarrierException, TimeoutException 
+//获取当前有多少个线程阻塞等待在临界点上
+int getNumberWaiting()
+//用于查询阻塞等待的线程是否被中断
+boolean isBroken()
+//将屏障重置为初始状态。如果当前有线程正在临界点等待的话，将抛出BrokenBarrierException。
+void reset()
+```
+
+另外需要注意的是，CyclicBarrier提供了这样的构造方法：
+
+```java
+public CyclicBarrier(int parties, Runnable barrierAction)
+```
+
+可以用来，当指定的线程都到达了指定的临界点的时**，接下来执行的操作可以由barrierAction传入即可**。
+
+**相当于在栅栏开放时，先执行这个传入的线程barrierAction**
+
+```java
+public class CyclicBarrierDemo {
+    //指定必须有6个运动员到达才行
+    private static CyclicBarrier barrier = new CyclicBarrier(6, () -> {
+        System.out.println("所有运动员入场，裁判员一声令下！！！！！");
+    });
+    public static void main(String[] args) {
+        System.out.println("运动员准备进场，全场欢呼............");
+
+        ExecutorService service = Executors.newFixedThreadPool(6);
+        for (int i = 0; i < 6; i++) {
+            service.execute(() -> {
+                try {
+                    System.out.println(Thread.currentThread().getName() + " 运动员，进场");
+                    barrier.await();
+                    System.out.println(Thread.currentThread().getName() + "  运动员出发");
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (BrokenBarrierException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+    }
+
+}
+
+输出结果：
+运动员准备进场，全场欢呼............
+pool-1-thread-2 运动员，进场
+pool-1-thread-1 运动员，进场
+pool-1-thread-3 运动员，进场
+pool-1-thread-4 运动员，进场
+pool-1-thread-5 运动员，进场
+pool-1-thread-6 运动员，进场
+所有运动员入场，裁判员一声令下！！！！！
+pool-1-thread-6  运动员出发
+pool-1-thread-1  运动员出发
+pool-1-thread-5  运动员出发
+pool-1-thread-4  运动员出发
+pool-1-thread-3  运动员出发
+pool-1-thread-2  运动员出发
+```
+
+#### CountDownLatch和CyclicBarrier比较
+
+都可以理解成维护的就是一个**计数器**，但是这两者还是各有不同侧重点的：
+
+CountDownLatch一个等多个
+
+CyclicBarrier多个线程等一个状态，再携手共进
+
+CyclicBarrier提供的方法更多，比如能够通过getNumberWaiting()，isBroken()这些方法获取当前多个线程的状态，**并且CyclicBarrier的构造方法可以传入barrierAction**，指定当所有线程都到达时执行的业务功能；
+
+**CountDownLatch是不能复用的，而CyclicBarrier是可以复用的**
+
+#### 控制资源并发访问Semaphore（信号量）
+
+Semaphore可以用于做流量控制，特别是公共资源有限的应用场景，**比如数据库连接**。假如有多个线程读取数据后，需要将数据保存在数据库中，而可用的最大数据库连接只有10个，这时候就需要使用Semaphore来控制能够并发访问到数据库连接资源的线程个数最多只有10个。在**限制资源使用的应用场景下**，Semaphore是特别合适
+
+```java
+//获取许可，如果无法获取到，则阻塞等待直至能够获取为止
+void acquire() throws InterruptedException 
+
+//同acquire方法功能基本一样，只不过该方法可以一次获取多个许可
+void acquire(int permits) throws InterruptedException
+
+//释放许可
+void release()
+
+//释放指定个数的许可
+void release(int permits)
+
+//尝试获取许可，如果能够获取成功则立即返回true，否则，则返回false
+boolean tryAcquire()
+
+//与tryAcquire方法一致，只不过这里可以指定获取多个许可
+boolean tryAcquire(int permits)
+
+//尝试获取许可，如果能够立即获取到或者在指定时间内能够获取到，则返回true，否则返回false
+boolean tryAcquire(long timeout, TimeUnit unit) throws InterruptedException
+
+//与上一个方法一致，只不过这里能够获取多个许可
+boolean tryAcquire(int permits, long timeout, TimeUnit unit)
+
+//返回当前可用的许可证个数
+int availablePermits()
+
+//返回正在等待获取许可证的线程数
+int getQueueLength()
+
+//是否有线程正在等待获取许可证
+boolean hasQueuedThreads()
+
+//获取所有正在等待许可的线程集合
+Collection<Thread> getQueuedThreads()
+```
+
+另外，在Semaphore的构造方法中还支持指定是够具有公平性，**默认的是非公平性**，这样也是为了保证吞吐量。
+
+**Semaphore用来做特殊资源的并发访问控制是相当合适的，如果有业务场景需要进行流量控制，可以优先考虑Semaphore。**
+
+#### 线程间交换数据工具Exchanger
+
+Exchanger是一个用于**线程间协作**的工具类，用于两个线程间能够交换。它提供了一个交换的**同步点**，在这个同步点两个线程能够交换数据。具体交换数据是通过exchange方法来实现的，如果一个线程先执行exchange方法，那么它会**同步等待**另一个线程也执行exchange方法，这个时候两个线程就都达到了同步点，两个线程就可以交换数据。
+
+```java
+//当一个线程执行该方法的时候，会等待另一个线程也执行该方法，因此两个线程就都达到了同步点
+//将数据交换给另一个线程，同时返回获取的数据
+V exchange(V x) throws InterruptedException
+
+//同上一个方法功能基本一样，只不过这个方法同步等待的时候，增加了超时时间
+V exchange(V x, long timeout, TimeUnit unit)
+    throws InterruptedException, TimeoutException 
+```
+
+### 生产者-消费者问题
+
+这个共享数据区域中应该具备这样的**线程间并发协作**的功能：
+
+1. 如果共享数据区已满的话，阻塞生产者继续生产数据放置入内；
+2. 如果共享数据区为空的话，阻塞消费者继续消费数据；
+
+在实现生产者消费者问题时，可以采用三种方式：
+
+1.使用Object的wait/notify的消息通知机制；
+
+2.使用Lock的Condition的await/signal的消息通知机制；
+
+3.使用BlockingQueue实现。本文主要将这三种实现方式进行总结归纳。
+
+####  wait/notify消息通知潜在的一些问题
+
+**1.通知遗漏**
+
+总结：在使用线程的等待/通知机制时，**一般都要配合一个 boolean 变量值**（或者其他能够判断真假的条件），在 **notify 之前改变该 boolean 变量的值，让 wait 返回后能够退出 while 循环**（一般都要在 wait 方法外围加一层 while 循环，以防止早期通知），或在通知被遗漏后，不会被阻塞在 wait 方法处。这样便保证了程序的正确性。
+
+**2.等待的wait条件发生变化，即被唤醒后那一瞬间条件又不满足了**
+
+总结：在使用线程的等待/通知机制时，一般都要在 while 循环中调用 wait()方法，因此需要配合使用一个 boolean 变量，满足 while 循环的条件时，进入 while 循环，执行 wait()方法，不满足 while 循环的条件时，跳出循环，执行后面的代码。
+
+**3. “假死”状态**
+
+现象：如果是多消费者和多生产者情况，如果使用notify方法可能会出现“假死”的情况，即**唤醒的是同类线程**。
+
+原因分析：假设当前多个生产者线程会调用wait方法阻塞等待，当其中的生产者线程获取到对象锁之后使用notify通知处于WAITTING状态的线程，如果唤醒的仍然是生产者线程，就会造成所有的生产者线程都处于等待状态。
+
+解决办法：**将notify方法替换成notifyAll方法**，如果使用的是lock的话，就将signal方法替换成signalAll方法。
+
+**在Object提供的消息通知机制应该遵循如下这些条件：**
+
+1. **永远在while循环中对条件进行判断而不是if语句中进行wait条件的判断；**
+2. **使用notifyAll而不是使用notify。**
 
