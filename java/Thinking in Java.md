@@ -482,7 +482,7 @@ final可以用来修饰对象引用，但是这个意义仅在于对象引用只
 
 **向上转型的使用场景**：在要求基类对象的地方，传入子类方法，这样就不用为每一个子类都单独写一个实现的方法（**多态去耦合**）
 
-**Java中除类static和final方法（private属于final方法）之外，其他方法都是后期绑定**
+**Java中除类static和final方法之外，其他方法都是后期绑定**
 
 **协变返回类型**：子类重写的基类方法可以返回基类方法返回类型的子类类型
 
@@ -2031,17 +2031,17 @@ exec.shutdown(); //拒绝提交新任务，待已提交任务执行完后尽快�
 
 - **newSingleThreadExecutor** 适用于保证顺序执行各个任务，且不会有多线程场景
 
-单个工作线程来执行一个**无边界队列**，即线程池中每次只有一个线程工作，单线程串行执行任务。
+单个工作线程来执行一个**Integer.MAX_VALUE队列**，即线程池中每次只有一个线程工作，单线程串行执行任务。
 
 - **newFixedThreadPool(n)** 适用于可以预测线程数量的业务中
 
-固定数量的线程池，复用 **固定数量的线程** 处理一个 **无边界队列** 。每提交一个任务就使用一个线程，直到达到线程池的最大数量，然后后面进入等待队列直到前面的任务完成才继续执行
+固定数量的线程池，复用 **固定数量的线程** 处理一个 **Integer.MAX_VALUE 队列** 。每提交一个任务就使用一个线程，直到达到线程池的最大数量，然后后面进入等待队列直到前面的任务完成才继续执行
 
 - **newCacheThreadPool（会自动销毁空闲线程，但最大线程数是Integer.MAX_VALUE）**
 
 可缓存线程池，**当线程池大小超过了处理任务所需的线程，那么就会回收部分空闲（一般是60秒无执行）的线程**，当有任务来时，会根据需要，在线程可用时，重用之前构造好的池中线程。这个线程池在执行 **大量短生命周期的异步任务时（many short-lived asynchronous task）**，可以显著提高程序性能
 
-- **newScheduleThreadPool**
+- **newScheduleThreadPool（最大线程数是Integer.MAX_VALUE）**
 
 大小无限制的线程池，支持定时和周期性的执行线程
 
@@ -2052,6 +2052,14 @@ exec.shutdown(); //拒绝提交新任务，待已提交任务执行完后尽快�
 **线程池存在的问题：**FixedThreadPool 和 CachedThreadPool 两者对高负载的应用都不是特别友好。
 
 无边界队列会导致高延迟甚至OOM，长时间运行会导致CachedThreadPool在创建线程上失控，导致OOM
+
+**阿里巴巴手册要求**：线程池不允许使用 Executors 去创建，而是通过 ThreadPoolExecutor的方式，这样 的处理方式让写的同学更加明确线程池的运行规则，规避资源耗尽的风险。	
+
+说明： Executors 返回的线程池对象的弊端如下：	
+
+1） **FixedThreadPool 和 SingleThreadPool** :	**允许的请求队列长度为 Integer.MAX_VALUE** ，可能会堆积大量的请求，从而导致 OOM 。	
+
+2） **CachedThreadPool 和 ScheduledThreadPool** :	**允许的创建线程数量为 Integer.MAX_VALUE** ，可能会创建大量的线程，从而导致 OOM 。
 
 #### 线程池最佳实践
 
@@ -2250,7 +2258,7 @@ moniterenter和moniterexit字节码指令
 
 **2.Synchronized是如何实现对方法进行同步**
 
-常量池中多了**ACC_SYNCHRONIZED**标示符，JVM就是根据该标示符来实现方法的同步的（其实和代码块同步是一个原理，只不过这里使用隐式的一个标志实现，而不是字节码指令）
+**常量池**中多了**ACC_SYNCHRONIZED**标示符，JVM就是根据该标示符来实现方法的同步的（其实和代码块同步是一个原理，只不过这里使用隐式的一个标志实现，而不是字节码指令）
 
 **wait/notify等方法也依赖于monitor对象**，这就是为什么只有在同步的块或者方法中才能调用wait/notify等方法，否则会抛出java.lang.IllegalMonitorStateException的异常的原因。
 
@@ -2266,13 +2274,9 @@ JDK1.6以后，为了减少获得锁和释放锁所带来的性能消耗，提�
 
 ##### Java对象头
 
-每一个Java类，在**被JVM加载**的时候，JVM会给这个类创建一个`instanceKlass`，保存在**方法区**，**用来在JVM层表示该Java类**。当我们在Java代码中，使用**new创建**一个对象的时候，**JVM会创建一个`instanceOopDesc`对象**，这个对象中包含了**对象头以及实例数据**。
+每一个Java类，在**被JVM加载**的时候，JVM会给这个类创建一个**`instanceKlass`**，保存在**方法区**，**用来在JVM层表示该Java类**。当我们在Java代码中，使用**new创建**一个对象的时候，**JVM会创建一个`instanceOopDesc`对象**，这个对象中包含了**对象头以及实例数据**。
 
 对象头信息是**与对象自身定义的数据无关的额外存储成本**，考虑到虚拟机的空间效率，Mark Word被设计成**一个非固定的数据结构**以便在极小的空间内存储尽量多的信息，它会根据对象的状态复用自己的存储空间。
-
-**下图为32位JVM的Mark Word**
-
-![ObjectHead](http://www.hollischuang.com/wp-content/uploads/2018/01/ObjectHead-1024x329.png)
 
 同步块的核心是获取了对象的monitor（即对象锁），**对象锁就记录在对象头中**
 
@@ -2289,11 +2293,13 @@ Java SE 1.6中，锁一共有4种状态，级别从低到高依次是：
 
 **对象的MarkWord变化如下图**
 
-![image-20190314202824439](/Users/allentian/Library/Application Support/typora-user-images/image-20190314202824439.png)
+**下图为32位JVM的Mark Word**
+
+![ObjectHead](http://www.hollischuang.com/wp-content/uploads/2018/01/ObjectHead-1024x329.png)
 
 ##### 偏向锁
 
-HotSpot的作者经过研究发现，大多数情况下，**锁不仅不存在多线程竞争，而且总是由同一线程多次获得**，为了让线程获得锁的代价更低而引入了偏向锁。
+**HotSpot的作者**经过研究发现，大多数情况下，**锁不仅不存在多线程竞争，而且总是由同一线程多次获得**，为了让线程获得锁的代价更低而引入了偏向锁。
 
 > **偏向锁的获取**
 
@@ -2317,7 +2323,7 @@ HotSpot的作者经过研究发现，大多数情况下，**锁不仅不存在�
 
 > **关闭偏向锁**
 
-偏向锁在Java 6和Java 7里是默认启用的，但是它在应用程序启动几秒钟之后才激活，如有必要可以使用JVM参数来关闭延迟：**-XX:BiasedLockingStartupDelay=0**。如果你确定应用程序里所有的锁通常情况下处于竞争状态，可以通过JVM参数关闭偏向锁：**-XX:-UseBiasedLocking=false**，那么程序**默认会进入轻量级锁状态**
+偏向锁在**Java 6和Java 7里是默认启用**的，但是它在应用程序启动几秒钟之后才激活，如有必要可以使用JVM参数来关闭延迟：**-XX:BiasedLockingStartupDelay=0**。如果你确定应用程序里所有的锁通常情况下处于竞争状态，可以通过JVM参数关闭偏向锁：**-XX:-UseBiasedLocking=false**，那么程序**默认会进入轻量级锁状态**
 
 ##### 轻量级锁
 
@@ -2333,7 +2339,7 @@ HotSpot的作者经过研究发现，大多数情况下，**锁不仅不存在�
 
 ##### 各种锁的比较
 
-![image-20190314204048203](/Users/allentian/Library/Application Support/typora-user-images/image-20190314204048203.png)
+![image-20190318110251103](https://ws3.sinaimg.cn/large/006tKfTcgy1g16rnac9uhj30uo0qu0xl.jpg)
 
 #####synchronized的正确使用
 
@@ -2369,19 +2375,19 @@ final可以修饰**变量，方法和类**，所修饰的内容一旦赋值之�
 
 #### final方法
 
-1. 父类的final方法是不能够被子类重写的
+1. 父类的final方法是**不能够被子类重写的**
 
-2. final方法是可以被重载的
+2. final方法是**可以被重载的**
 
 #### final类
 
-不能被继承
+**不能被继承**
 
 #### 不变类
 
 - 使用private和final修饰符来修饰该类的成员变量
 - 提供带参的构造器用于初始化类的成员变量；
-- 仅为该类的成员变量提供getter方法，不提供setter方法，因为**普通方法无法修改fina修饰的成员变量**；
+- 仅为该类的成员变量提供getter方法，不提供setter方法，因为**普通方法无法修改final修饰的成员变量**；
 - 如果有必要就重写Object类 的hashCode()和equals()方法，应该保证用equals()判断相同的两个对象其Hashcode值也是相等的。
 
 String的value就是final
@@ -2497,7 +2503,7 @@ JMM并没有限制执行引擎使用处理器的寄存器或者**高速缓存**�
 
 **volatile关键字**：被修改的值会立即被更新到主存，并且使其他CPU的缓存行无效
 
-**volatile的数组只针对数组的引用具有volatile的语义，而不是它的元素**
+**volatile的数组只针对数组的引用具有volatile的语义，而不是它的元素！！！！！**
 
 **synchronized和Lock**：保证同一时刻只有一个线程获取锁执行同步代码，并且在**释放锁之前会把修改变量刷新到主存！！！**
 
@@ -2646,9 +2652,9 @@ AQS是构造同步组件的**基础框架**，有一个int成员变量state表�
 
 **AQS需要被继承用来实现具体同步语义的方法：**
 
-具有独占锁功能的子类：它必须实现`tryAcquire`、`tryRelease`、`isHeldExclusively`等；
+具有**独占锁**功能的子类：它必须实现`tryAcquire`、`tryRelease`、`isHeldExclusively`等；
 
-共享锁功能的子类：必须实现`tryAcquireShared`和`tryReleaseShared`等方法
+**共享锁**功能的子类：必须实现`tryAcquireShared`和`tryReleaseShared`等方法
 
 带**Shared后缀**的方法都是支持共享锁加锁的语义。Semaphore、ReentrantReadWriteLock是**共享锁**，ReentrantLock是**独占锁**。
 
@@ -2723,8 +2729,8 @@ AQS中模版方法acquire是**供子类同步组件调用的**，而其中又调
 
 1. 同步组件（这里不仅仅值锁，还包括CountDownLatch等）的实现依赖于同步器AQS，在同步组件实现中，使用**AQS的方式被推荐定义继承AQS的静态内部类**；
 2. AQS采用模板方法进行设计，AQS的protected修饰的方法需要由继承AQS的子类进行重写实现，当调用AQS的子类的方法时就会调用被重写的方法；
-3. AQS负责同步状态的管理，线程的排队，等待和唤醒这些底层操作，而Lock等同步组件主要专注于**实现同步语义**；
-4. 在重写AQS的方式时，使用AQS提供的`getState(),setState(),compareAndSetState()`方法进行修改同步状态
+3. AQS**负责同步状态的管理，线程的排队，等待和唤醒这些底层操作**，而Lock等同步组件主要专注于**实现同步语义**；
+4. 在重写AQS的方式时，使用AQS提供的**`getState(),setState(),compareAndSetState()`**方法进行修改同步状态
 
 #### Lock（同步组件）和同步器(AQS)的关系
 
@@ -2759,13 +2765,13 @@ AQS中模版方法acquire是**供子类同步组件调用的**，而其中又调
 
 释放：重写AQS的**`tryRelease`**方法
 
-**同步状态的低16位用来表示写锁的获取次数**
+**同步状态的低16位用来表示写锁的获取次数，同步状态高16位表示读锁获取次数**
 
 **静态内部类`ReadLock`读锁（共享锁）**
 
 重写`tryAcquireShared`方法和`tryReleaseShared`方法
 
-**锁降级**
+**锁降级！！！！**
 
 **遵循按照获取写锁，获取读锁再释放写锁的次序，写锁能够降级成为读锁**
 
@@ -2808,7 +2814,11 @@ AQS中模版方法acquire是**供子类同步组件调用的**，而其中又调
 - 新建（new）：已经被分配了必须的系统资源，并执行了初始化，有资格获得CPU时间。这个状态很短暂，调度器会把这个线程转变成就绪状态或者阻塞状态
 - 就绪（Runable）：只要分配CPU时间片，就可以运行。**不同于死亡和阻塞状态**
 - 阻塞（Blocked）：线程可以运行，但被某个条件阻止，此状态不会分配CPU时间，知道线程重新进入就绪状态才能执行操作
-- 死亡（dead）：不可再调度，通常的死亡方式是从run()方法返回，但是**任务的线程还可以被中断！！！**
+- 无限期等待（Waiting）：处于这种状态的线程不会被分配CPU执行时间，它们要等待**被其他线程显式地唤醒**。以下方法会让线程陷入**无限期的等待状态**：
+  1. 没有设置timeout参数的Object.wait()方法；
+  2. 没有设置timeout参数的Thread.join()方法；
+  3. LockSupport.park()方法（**也就是Condition的await()方法**）；
+- 死亡（Terminated）：不可再调度，通常的死亡方式是从run()方法返回，但是**任务的线程还可以被中断！！！**
 
 #### 线程阻塞的5种情况
 
@@ -3136,7 +3146,7 @@ void unpark(Thread thread):唤醒处于阻塞状态的指定线程
 
 实际上LockSupport阻塞和唤醒线程的功能是依赖于sun.misc.Unsafe，这是一个很底层的类，直接修改内存，所以叫Unsafe，比如park()方法的功能实现则是靠unsafe.park()方法。
 
-**synchronzed致使线程阻塞，线程会进入到BLOCKED状态，而调用LockSupprt方法阻塞线程会致使线程进入到WAITING状态。**
+**synchronized致使线程阻塞，线程会进入到BLOCKED状态，而调用LockSupprt方法阻塞线程会致使线程进入到WAITING状态。**
 
 ```java
 public class LockSupportDemo {
@@ -3843,9 +3853,9 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
 **第二个部分**就是将原来table中的元素复制到nextTable中，主要是遍历复制的过程。 根据运算得到当前遍历的数组的位置i，然后利用tabAt方法获得i位置的元素再进行判断：
 
-1. 如果这个位置为空，就在原table中的i位置放入forwardNode节点，这个也是触发并发扩容的关键点；
-2. 如果这个位置是Node节点（fh>=0），如果它是一个链表的头节点，就构造一个反序链表，把他们分别放在nextTable的i和i+n的位置上
-3. 如果这个位置是TreeBin节点（fh<0），也做一个反序处理，并且判断是否需要untreefi，把处理的结果分别放在nextTable的i和i+n的位置上
+1. 如果这个位置为空，就在原table中的i位置放入forwardingNode节点，**这个也是触发并发扩容的关键点**；
+2. 如果这个位置是Node节点（fh>=0），如果它是一个链表的头节点，就构造一个**反序链表**，把他们分别放在nextTable的**i和i+n的位置上**
+3. 如果这个位置是TreeBin节点（fh<0），也做一个**反序处理，并且判断是否需要untreefi**，把处理的结果分别放在nextTable的**i和i+n的位置上**
 4. 遍历过所有的节点以后就完成了复制工作，这时让nextTable作为新的table，并且更新sizeCtl为新容量的0.75倍 ，完成扩容。设置为新容量的0.75倍代码为 `sizeCtl = (n << 1) - (n >>> 1)`，仔细体会下是不是很巧妙，n<<1相当于n右移一位表示n的两倍即2n,n>>>1左右一位相当于n除以2即0.5n,然后两者相减为2n-0.5n=1.5n,是不是刚好等于新容量的0.75倍即2n*0.75=1.5n。最后用一个示意图来进行总结（图片摘自网络）：
 
 ![image-20190312170116557](/Users/allentian/Library/Application Support/typora-user-images/image-20190312170116557.png)
@@ -3858,7 +3868,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
 如果定位到的桶结点类型是 ForwardingNode 结点，**调用 helpTransfer 协助扩容**。
 
-否则就老老实实的给桶加锁，删除一个节点。
+否则就老老实实的**给桶加锁**，删除一个节点。
 
 **最后会调用 addCount 方法 CAS 更新 baseCount 的值。**
 
@@ -4004,8 +4014,8 @@ JDK6,7中的ConcurrentHashmap主要使用Segment来实现**减小锁粒度**，�
 1. 不采用segment而采用node，**锁住node来实现减小锁粒度**。
 2. 设计了**MOVED**状态 当resize的中过程中 线程2还在put数据，线程2会帮助resize。
 3. 使用**3个CAS操作**来确保node的一些操作的原子性，这种方式代替了锁。
-4. sizeCtl的不同值来代表不同含义，起到了控制的作用。
-5. 采用synchronized而不是ReentrantLock
+4. sizeCtl的不同值来代表不同含义，**起到了控制的作用**。
+5. **采用synchronized而不是ReentrantLock**
 
 ### CopyOnWriteArrayList
 
@@ -4135,7 +4145,7 @@ private static ArrayBlockingQueue<Integer> blockingQueue = new ArrayBlockingQueu
 
 ##### 2.LinkedBlockingQueue
 
-LinkedBlockingQueue是用**链表**实现的**有界阻塞队列**，同样满足FIFO的特性，与ArrayBlockingQueue相比起来具有更高的**吞吐量**，为了防止LinkedBlockingQueue容量迅速增，损耗大量内存。通常在创建LinkedBlockingQueue对象时，会指定其大小，如果未指定，容量等于Integer.MAX_VALUE
+LinkedBlockingQueue是用**链表**实现的**有界阻塞队列，但无参构造函数默认容量是Integer.MAX_VALUE**，同样满足FIFO的特性，与ArrayBlockingQueue相比起来具有更高的**吞吐量**，为了防止LinkedBlockingQueue容量迅速增，损耗大量内存。通常在创建LinkedBlockingQueue对象时，会指定其大小，如果未指定，容量等于Integer.MAX_VALUE
 
 ##### 3.PriorityBlockingQueue
 

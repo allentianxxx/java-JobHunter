@@ -1344,7 +1344,7 @@ WeakHashMap 主要用来**实现缓存**，通过使用 WeakHashMap 来**引用�
 private static class Entry<K,V> extends WeakReference<Object> implements Map.Entry<K,V>
 ```
 
-#### ConcurrentHash
+#### ConcurrentCache
 
 **Tomcat 中的 ConcurrentCache** 使用了 WeakHashMap 来实现缓存功能。
 

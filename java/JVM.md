@@ -51,7 +51,7 @@ java -Xss512M HackTheJava
 
 ### 堆
 
-所有**对象**都在这里分配内存，是垃圾收集的主要区域（"GC 堆"）。
+所有（并不是绝对，JIT逃逸分析）**对象**都在这里分配内存，是垃圾收集的主要区域（"GC 堆"）。
 
 现代的垃圾收集器基本都是采用**分代收集算法**，其主要的思想是针对不同类型的对象采取不同的垃圾回收算法。可以**将堆分成两块**：
 
@@ -86,7 +86,7 @@ Class 文件中的常量池（**编译器生成的字面量和符号引用**）�
 
 ### 直接内存
 
-在 JDK 1.4 中新引入了 NIO 类，它可以使用 **Native 函数库直接分配堆外内存**，然后通过 Java 堆里的 DirectByteBuffer 对象作为这块内存的引用进行操作。这样能在一些场景中显著提高性能，因为避免了在堆内存和堆外内存来回拷贝数据。
+在 **JDK 1.4** 中新引入了 NIO 类，它可以使用 **Native 函数库直接分配堆外内存**，然后通过 Java 堆里的 DirectByteBuffer 对象作为这块内存的引用进行操作。这样能在一些场景中显著提高性能，因为避免了在堆内存和堆外内存来回拷贝数据。
 
 ## 二、垃圾收集
 
@@ -339,7 +339,7 @@ Parallel Scavenge/Parallel Old收集器配合使用的流程图
 
 ![img](https://cyc2018.github.io/CS-Notes/pics/278fe431-af88-4a95-a895-9c3b80117de3.jpg)
 
-是 Parallel Scavenge 收集器的老年代版本。
+**是 Parallel Scavenge 收集器的老年代版本。**
 
 在**注重吞吐量**以及 **CPU 资源敏感**的场合，都可以优先考虑 Parallel Scavenge 加 Parallel Old 收集器。
 
@@ -388,7 +388,7 @@ G1 把堆划分成多个**大小相等的独立区域（Region）**，新生代�
 
 #####3. 避免全堆扫描—— Remembered Set
 
-**每个 Region 都有一个Remembered Set**，用来记录该 **Region 对象的引用对象所在的 Region**。通过使用 Remembered Set，在做可达性分析的时候就可以**避免全堆扫描**。
+**每个 Region 都有一个Remembered Set**，用来记录该 **Region 对象的引用对象所在的 Region**。通过使用 Remembered Set，在做**可达性分析**的时候就可以**避免全堆扫描**。
 
 ![img](https://cyc2018.github.io/CS-Notes/pics/f99ee771-c56f-47fb-9148-c0036695b5fe.jpg)
 
