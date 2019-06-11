@@ -1,4 +1,4 @@
-# ****Thinking**** in Java
+# Thinking in Java
 
 ## 第1章 对象导论
 
@@ -2029,25 +2029,45 @@ exec.shutdown(); //拒绝提交新任务，待已提交任务执行完后尽快�
 
 **常见线程池（线程池都会自动复用，即先看有无空闲线程可以执行任务，没有再新建线程）**：
 
-- **newSingleThreadExecutor** 适用于保证顺序执行各个任务，且不会有多线程场景
+- **new SingleThreadExecutor** 适用于**保证顺序执行**各个任务，且不会有多线程场景
 
-单个工作线程来执行一个**Integer.MAX_VALUE队列**，即线程池中每次只有一个线程工作，单线程串行执行任务。
+corePoolSize = **1**, maximumPoolSize = **Integer.MAX_VALUE**,  keepAliveTime = **0L** 
 
-- **newFixedThreadPool(n)** 适用于可以预测线程数量的业务中
+workQueue = **new LinkedBlockingQueue\<Runnable>()**
 
-固定数量的线程池，复用 **固定数量的线程** 处理一个 **Integer.MAX_VALUE 队列** 。每提交一个任务就使用一个线程，直到达到线程池的最大数量，然后后面进入等待队列直到前面的任务完成才继续执行
+单线程**串行执行**任务，线程池每次只有一个线程工作，无界（Integer.MAX_VALUE）阻塞队列（**会爆炸**）
 
-- **newCacheThreadPool（会自动销毁空闲线程，但最大线程数是Integer.MAX_VALUE）**
+- **new FixedThreadPool(n)** 适用于可以预测线程数量的业务中
+
+corePoolSize = **n**, maximumPoolSize = **n**,  keepAliveTime = **0L** 
+
+workQueue = **new LinkedBlockingQueue\<Runnable>()**
+
+固定数量的核心线程池，复用 **固定数量的线程** 处理无界阻塞 **Integer.MAX_VALUE 队列** （**会爆炸**）。每提交一个任务就使用一个线程，直到达到线程池的最大数量，然后后面进入等待队列直到前面的任务完成才继续执行
+
+- **new CacheThreadPool（会自动销毁空闲线程，但最大线程数是Integer.MAX_VALUE）**
+
+corePoolSize = **0**, maximumPoolSize = **Integer.MAX_VALUE**,  keepAliveTime = **60L**,
+
+workQueue = **new SynchronousQueue\<Runnable>()**
+
+**CachedThreadPool的任务队列其实相当于一个空的集合**，**这将导致任何任务都会被新建一个线程执行**，因为在这种场景下SynchronousQueue是不能插入任务的
 
 可缓存线程池，**当线程池大小超过了处理任务所需的线程，那么就会回收部分空闲（一般是60秒无执行）的线程**，当有任务来时，会根据需要，在线程可用时，重用之前构造好的池中线程。这个线程池在执行 **大量短生命周期的异步任务时（many short-lived asynchronous task）**，可以显著提高程序性能
 
-- **newScheduleThreadPool（最大线程数是Integer.MAX_VALUE）**
+- **new ScheduleThreadPool(n)（最大线程数是Integer.MAX_VALUE）**
 
-大小无限制的线程池，支持定时和周期性的执行线程
+corePoolSize = **n**, maximumPoolSize = **Integer.MAX_VALUE**,  keepAliveTime = **0L** 
 
-- **newWorkStealingPool**
+workQueue = **new DelayedWorkQueue()**
+
+无界队列，总线程大小无限制（**会爆炸**）的线程池s，支持**定时和周期性**的执行线程
+
+- **new WorkStealingPool（可执行其他线程任务）**
 
 创建一个拥有多个任务队列的线程池，通过使用多个队列减少竞争，不传参数，则默认设定为cpu的数量，适用于大耗时的操作，可以并行来执行。
+
+该线程池中每个线程都维护自己的任务队列**。当自己的任务队列执行完成时，会帮助其他线程执行其中的任务**。主动找活干。PS:它底层**是ForkJoinPool的实现**。**用守护线程daemon的方式来执行**。
 
 **线程池存在的问题：**FixedThreadPool 和 CachedThreadPool 两者对高负载的应用都不是特别友好。
 
@@ -2057,9 +2077,9 @@ exec.shutdown(); //拒绝提交新任务，待已提交任务执行完后尽快�
 
 说明： Executors 返回的线程池对象的弊端如下：	
 
-1） **FixedThreadPool 和 SingleThreadPool** :	**允许的请求队列长度为 Integer.MAX_VALUE** ，可能会堆积大量的请求，从而导致 OOM 。	
+1） **FixedThreadPool 和 SingleThreadPool** :	**允许的请求队列长度为 Integer.MAX_VALUE** ，可能会**堆积大量的请求**，从而导致 OOM 。	
 
-2） **CachedThreadPool 和 ScheduledThreadPool** :	**允许的创建线程数量为 Integer.MAX_VALUE** ，可能会创建大量的线程，从而导致 OOM 。
+2） **CachedThreadPool 和 ScheduledThreadPool** :	**允许的创建线程数量为 Integer.MAX_VALUE** ，可能**会创建大量的线程**，从而导致 OOM 。
 
 #### 线程池最佳实践
 
@@ -2969,7 +2989,7 @@ T1执行到Point1时，someCondition并未满足，所以T1准备wait()，但此
 1. `void signal()`：唤醒一个等待在condition上的线程，将该线程从**等待队列**中转移到**同步队列**中，如果**在同步队列中能够竞争到Lock**则可以从等待方法中返回。
 2. `void signalAll()`：与1的区别在于能够唤醒所有等待在condition上的线程
 
- #### Condition等待队列
+ #### Condition等待队列（又称条件队列）
 
 AQS的内部类`ConditionObject`是Condition的实现，其**维护等待队列的做法和AQS维护同步队列**相似，还复
 
@@ -4170,9 +4190,13 @@ LinkedTransferQueue是一个由链表数据结构构成的**无界阻塞队列**
 
 LinkedBlockingDeque是基于链表数据结构的**有界阻塞双端队列**，如果在创建对象时为指定大小时，其默认大小为Integer.MAX_VALUE。与LinkedBlockingQueue相比，主要的不同点在于，LinkedBlockingDeque具有双端队列的特性。
 
-##### 7.DelayQueue（配合ScheduledThreadPoolExecutor）
+##### 7.DelayQueue
 
 DelayQueue是一个存放实现**Delayed接口**的数据的**无界阻塞队列**，只有当数据对象的**延时时间达到时**才能插入到队列进行存储。如果当前所有的数据都还没有达到创建时所指定的延时期，**则队列没有队头**，并且线程通过poll等方法获取数据元素则返回null。所谓数据延时期满时，则是通过Delayed接口的`getDelay(TimeUnit.NANOSECONDS)`来进行判定，如果该方法返回的是小于等于0则说明该数据元素的延时期已满。
+
+##### 8.DelayedWorkQueue（没有实现Delayed接口，ScheduledThreadPoolExecutor静态内部类）
+
+**堆实现，无界阻塞队列**。按照延迟时间从短到长来进行排序的，**堆顶是离现在时间最近的一个任务**
 
 ### 线程池（Executor体系）
 
@@ -4220,7 +4244,7 @@ ThreadPoolExecutor(int corePoolSize,
 
 `unit`：时间单位。为keepAliveTime指定时间单位。
 
-`workQueue`：阻塞队列。用于保存任务的阻塞队列。可以使用**ArrayBlockingQueue, LinkedBlockingQueue, SynchronousQueue, PriorityBlockingQueue**。
+`workQueue`：阻塞队列。用于保存任务的阻塞队列。可以使用**ArrayBlockingQueue, LinkedBlockingQueue, SynchronousQueue, PriorityBlockingQueue，DelayedWorkQueue**。
 
 `threadFactory`：创建线程的工程类。可以通过指定线程工厂为每个创建出来的线程设置更有意义的名字，如果出现并发问题，也方便查找问题原因。
 
@@ -4231,20 +4255,51 @@ ThreadPoolExecutor(int corePoolSize,
 3. DiscardPolicy：不处理直接丢弃掉任务；
 4. DiscardOldestPolicy：丢弃掉阻塞队列中存放时间最久的任务，执行当前任务
 
-##### 线程池执行逻辑
+#### 线程池重要属性
 
-![image-20190312201526328](/Users/allentian/Library/Application Support/typora-user-images/image-20190312201526328.png)
+##### 1. 线程池状态和工作线程数量
 
-execute方法执行逻辑有这样几种情况：
+用了一个 **AtomicInteger 型**的变量就保存了这两个属性的值，那就是 **ctl。**
 
-1. 如果当前运行的线程少于corePoolSize，则会创建新的线程来执行新的任务；
-2. 如果运行的线程个数等于或者大于corePoolSize，则会将提交的任务存放到阻塞队列workQueue中；
-3. 如果当前workQueue队列已满的话，则会创建新的线程来执行任务；
-4. 如果线程个数已经超过了maximumPoolSize，则会使用饱和策略RejectedExecutionHandler来进行处理。
+![image-20190403123958268](/Users/allentian/Library/Application Support/typora-user-images/image-20190403123958268.png)
 
-需要注意的是，线程池的设计思想就是使用了**核心线程池corePoolSize，阻塞队列workQueue和线程池maximumPoolSize**，这样的**缓存策略**来处理任务，实际上这样的设计思想在需要框架中都会使用。
+ctl 的**高3位**用来表示线程池的状态(runState)，**低29位**用来表示工作线程的个数(workerCnt)
+
+##### 2. 核心线程数和最大线程数
+
+- 核心线程数：corePoolSize 用来表示线程池中的核心线程的数量，也可以称为可闲置的线程数量
+- 最大线程数：maximumPoolSize 用来表示线程池中最多能够创建的线程数量
+
+##### 3. 创建线程的工厂
+
+**addWorker**时会**new Worker()，Worker是内部类，实现了Runable接口**，会调用ThreadFactory.newThread，这个ThreadFactory也可以在初始化ThreadPoolExecutor时传入
+
+##### 4. 缓存任务的阻塞队列
+
+**当前线程大于corePoolSize时**的新任务就会被放入阻塞队列，阻塞队列就是一个**存放Worker的队列**
+
+**有界队列**：超出初始容量后不会扩容 ArrayBlockingQueue  **无界队列**：超出初始容量后会扩容 PriorityBlockingQueue
+
+##### 5. 非核心线程存活时间
+
+**核心线程是什么？和创建先后顺序有关吗？**
+
+事实上，在addWorker的时候确实有一个**boolean来指定这个Worker是否核心线程**，**但回收线程时和是否为核心线程并无绝对联系**
+
+**小于corePoolSize时的当前线程都可以被认为是"核心线程"**
+
+每个线程在**`runWorker`**执行完当前任务后，会调用**`getTask`**去获取阻塞队列里的任务
+
+- **当前线程数量小于corePoolSize**，那么线程会使用**take() 方法阻塞式**取任务
+- **当前线程数量大于corePoolSize或者allowCoreThreadTimeOut == true**，会使用 **poll(keepAliveTime，timeUnit) **方法取任务，如果超时，那么就会把这个线程销毁。**这里就是keepAliveTime参数使用场景**
+
+所以每个线程想要保住自己**“核心线程”的身份**，必须充分努力，**尽可能快的获取到任务去执行，这样才能逃避被回收的命运**。
 
 #### 线程池的关闭
+
+##### 线程池状态
+
+![image-20190403123737753](/Users/allentian/Library/Application Support/typora-user-images/image-20190403123737753.png)
 
 关闭线程池，可以通过`shutdown`和`shutdownNow`这两个方法。它们的原理都是遍历线程池中所有的线程，然后依次中断线程。`shutdown`和`shutdownNow`还是有不一样的地方：
 

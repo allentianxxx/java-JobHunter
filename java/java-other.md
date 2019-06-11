@@ -1390,5 +1390,72 @@ public final class ConcurrentCache<K, V> {
 }
 ```
 
+### 非线程安全和线程安全容器对比图
 
+| 非线程安全 | 线程安全(java.util.concurrent，「基于CAS和volatile」)        | 线程安全(Java 1.1，已过时，基于「Synchronized」) |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------ |
+| ArrayList  | CopyOnWriteArrayList                                         | Vector                                           |
+| LinkedList | ConcurrentLinkedQueue（非阻塞**Queue**），ConcurrentLinkedDeque（非阻塞**Deque or Stack**） | Stack                                            |
+| HashSet    | CopyOnWriteArraySet                                          | -                                                |
+| TreeSet    | ConcurrentSkipListSet（**跳表**）                            | -                                                |
+| HashMap    | ConcurrentHashMap                                            | Hashtable                                        |
+| TreeMap    | ConcurrentSkipListMap（**跳表**）                            | -                                                |
+
+### 深拷贝和浅拷贝——Object中的clone()方法
+
+#### 引用拷贝
+
+如下代码只是复制了一个Person对象的引用而已，**并没有开辟空间新建对象**
+
+```java
+		Person p = new Person(23, "zhang");
+		Person p1 = p;
+		System.out.println(p);
+		System.out.println(p1);
+```
+
+#### 对象拷贝（深拷贝和浅拷贝基于对象拷贝）
+
+Object.clone()方法是实实在在的复制了一个对象的，**开辟了新的空间**
+
+```java
+		Person p = new Person(23, "zhang");
+		Person p1 = (Person) p.clone();
+		System.out.println(p);
+		System.out.println(p1);
+```
+
+#### 浅拷贝——Object.clone()如果用于一个内部有其他对象的对象
+
+```java
+public class Person implements Cloneable{
+	private int age ;
+	private String name;
+	public Person(int age, String name) {
+		this.age = age;
+		this.name = name;
+	}
+	public Person() {}
+	public int getAge() {
+		return age;
+	}
+	public String getName() {
+		return name;
+	}
+	@Override
+	protected Object clone() throws CloneNotSupportedException {
+		return (Person)super.clone();
+	}
+}
+```
+
+由于age是基本数据类型， 那么对它的拷贝没有什么疑议，直接将一个4字节的整数值拷贝过来就行。但是name是String类型的， 它只是一个引用， 指向一个真正的String对象，那么**对它的拷贝有两种方式**： 直接将源对象中的name的引用值拷贝给新对象的name字段， 或者是根据原Person对象中的name指向的字符串对象创建一个新的相同的字符串对象，将这个新字符串对象的引用赋给新拷贝的Person对象的name字段。**这两种拷贝方式分别叫做浅拷贝和深拷贝**。
+
+![image-20190329115644157](/Users/allentian/Library/Application Support/typora-user-images/image-20190329115644157.png)
+
+**所以，clone方法执行的是浅拷贝（或者说是不彻底的深拷贝）， 在编写程序时要注意这个细节！！！！！**
+
+#### 实现深拷贝（注意：很难有彻底的深拷贝）
+
+如果想要深拷贝一个对象， **这个对象必须要实现Cloneable接口**，实现clone方法，**并且在clone方法内部，把该对象引用的其他对象也要clone一份** ， 这就要求这个**被引用的对象必须也要实现Cloneable接口并且实现clone方法。**
 

@@ -112,9 +112,31 @@ Class 文件中的常量池（**编译器生成的字面量和符号引用**）�
 
 ### GC监控
 
+####jmap（JVM Memory Map for Java）
+
+jmap用于生成堆快照（**heapdump**）
+
 **堆转储（heap dump）**是一个用来检查Java内存中的对象和数据的内存文件。该文件可以通过执行JDK中的**`jmap`**命令来创建。在创建文件的过程中，所有Java程序都将暂停，因此，**不要在系统执行过程中创建该文件**。
 
+通过JVM启动时加入启动参数 –XX:HeapDumpOnOutOfMemoryError参数比较常用
+
+jmap的作用不仅仅是为了获取dump文件，还可以**用于查询finalize执行队列**、**Java堆和永久代**的详细信息，如空间使用率、垃圾回收器等
+
+####jstat（JVM Statistics Monitoring Tools）
+
+监控虚拟机的各种运行状态信息，如类的装载、内存、垃圾回收、JIT编译器等
+
 **在运行中的Web应用服务器**（Web Application Server,WAS）上查看GC状态的最佳方式就是使用**`jstat`**命令
+
+####jps（JVM Process Status Tools）
+
+而他的功能和**ps**的功能类似，可以列举正在运行的**饿虚拟机进程并显示虚拟机执行的主类**以及这些**进程的唯一ID**（LVMID，对应本机来说和PID相同）
+
+####jstack（JVM Stack Trace for java）
+
+**JVM当前时刻的线程快照**，又称**threaddump**文件，它是JVM当前每一条线程正在执行的堆栈信息的集合。生成线程快照的主要目的是为了定位线程出现长时间停顿的原因，如线程死锁、死循环、请求外部时长过长导致线程停顿的原因。通过jstack我们就可以知道哪些进程在后台做些什么？在等待什么资源等！
+
+
 
 ### 判断一个对象是否可回收
 
@@ -780,3 +802,12 @@ public class FileSystemClassLoader extends ClassLoader {
     }
 }
 ```
+
+### 破坏双亲委派
+
+#### 为什么要破坏双亲委派？
+
+因为在某些情况下**父类加载器需要委托子类加载器去加载class文件**。受到加载范围的限制，父类加载器无法加载到需要的文件。
+
+以Driver接口为例，由于Driver接口定义在jdk当中的，**而其实现由各个数据库的服务商来提供**，比如MySQL的就写了`MySQL Connector`，那么问题就来了，DriverManager（也由jdk提供）要加载各个实现了Driver接口的实现类，然后进行管理，**但是DriverManager由启动类加载器加载**，只能记载JAVA_HOME的lib下文件，**而其实现是由服务商提供的，由系统类加载器加载**，这个时候就需要**启动类加载器来委托子类来加载Driver实现**，从而破坏了双亲委派，这里仅仅是举了破坏双亲委派的其中一个情况。
+
